@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Small widget info -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="40dp"
     android:minHeight="40dp"
-    android:updatePeriodMillis="6000"
-    android:previewImage="@drawable/example_appwidget_preview"
+    android:updatePeriodMillis="1800000"
+    android:previewImage="@drawable/andwidjet1"
     android:initialLayout="@layout/my_home_small_widget"
     android:description="@string/app_widget_description"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:previewLayout="@layout/my_home_small_widget"
     android:targetCellHeight="1"
-       android:targetCellWidth="1"
-    android:initialKeyguardLayout="@layout/my_home_small_widget"
-/>
+    android:targetCellWidth="1"
+    android:initialKeyguardLayout="@layout/my_home_small_widget" />
