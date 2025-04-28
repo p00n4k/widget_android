@@ -32,8 +32,15 @@ class WidgetUpdateWorker(context: Context, params: WorkerParameters) :
                 5, TimeUnit.MINUTES    // Flex period
             )
                 .setConstraints(constraints)
+                // Add backoff strategy for reliability
+                .setBackoffCriteria(
+                    BackoffPolicy.LINEAR,
+                    WorkRequest.MIN_BACKOFF_MILLIS,
+                    TimeUnit.MILLISECONDS
+                )
                 .build()
                 
+            // Use UPDATE policy as in the original code
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.UPDATE,

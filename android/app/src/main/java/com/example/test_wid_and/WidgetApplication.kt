@@ -1,4 +1,3 @@
-// android/app/src/main/java/com/example/test_wid_and/WidgetApplication.kt
 package com.example.test_wid_and
 
 import android.app.Application
@@ -9,9 +8,7 @@ import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
-import com.example.test_wid_and.worker.WidgetUpdateWorker
+import com.example.test_wid_and.util.JobSchedulerHelper
 
 class WidgetApplication : Application(), Configuration.Provider, LifecycleObserver {
     companion object {
@@ -22,8 +19,8 @@ class WidgetApplication : Application(), Configuration.Provider, LifecycleObserv
         super.onCreate()
         Log.d(TAG, "Application created, setting up widget background updates")
         
-        // Initialize periodic widget updates when app starts
-        WidgetUpdateWorker.enqueuePeriodicWork(this)
+        // Initialize persistent widget updates with JobScheduler
+        JobSchedulerHelper.scheduleWidgetUpdateJob(this)
         
         // Register as lifecycle observer to detect when app comes to foreground
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
@@ -34,10 +31,7 @@ class WidgetApplication : Application(), Configuration.Provider, LifecycleObserv
         Log.d(TAG, "App came to foreground - triggering immediate widget update")
         
         // Trigger an immediate widget update when app is foregrounded
-        val oneTimeRequest = OneTimeWorkRequestBuilder<WidgetUpdateWorker>()
-            .build()
-        
-        WorkManager.getInstance(this).enqueue(oneTimeRequest)
+        JobSchedulerHelper.runImmediateWidgetUpdate(this)
     }
     
     override fun getWorkManagerConfiguration(): Configuration {

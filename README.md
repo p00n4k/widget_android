@@ -601,3 +601,969 @@ class MyHomeSmallWidget : AppWidgetProvider() {
 
 }
 ```
+
+
+
+
+
+
+
+
+
+
+I have a flutter project code with some kotlin integrated code. This is a test application that dedicated to one feature. This feature I am working with in the widget for air quality monitoring application. Now the widget is working correctly as it should be. It will always update data every 15 minutes. When I open an application, it will force update right away. However, there is one issue I want you to solve. When I completely closed (or killed the app), the widget is not working as it should be anymore. It no longer update the data. I will show you the code I have below. When you give me a solution, label each code snipped which file I should update (or create) too.
+
+
+
+
+
+
+
+`android\app\src\main\java\com\example\test_wid_and\service\PM25Service.kt`
+```kotlin
+package com.example.test_wid_and.service
+
+import com.example.test_wid_and.util.WidgetUtil.PM25Data
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.*
+
+class PM25Service {
+    companion object {
+        suspend fun fetchPM25Data(latitude: Double, longitude: Double): PM25Data {
+            return try {
+                val url = URL("https://pm25.gistda.or.th/rest/pred/getPm25byLocation?lat=$latitude&lng=$longitude")
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 10000
+                connection.readTimeout = 10000
+                connection.connect()
+                
+                if (connection.responseCode == 200) {
+                    val response = connection.inputStream.bufferedReader().use { it.readText() }
+                    parseResponse(response)
+                } else {
+                    PM25Data(null, null, null)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                PM25Data(null, null, null)
+            }
+        }
+        
+        private fun parseResponse(response: String): PM25Data {
+            val jsonObject = JSONObject(response)
+            val dataObject = jsonObject.getJSONObject("data")
+            
+            // Extract current PM2.5
+            val pmCurrent = dataObject.getJSONArray("pm25").getDouble(0)
+            
+            // Extract Thai date information
+            val datetimeThai = dataObject.getJSONObject("datetimeThai")
+            val dateThai = datetimeThai.getString("dateThai")
+            val timeThai = datetimeThai.getString("timeThai")
+            val dateTimeString = "$dateThai $timeThai"
+            
+            // Extract hourly PM2.5 values and times
+            val hourlyData = dataObject.getJSONArray("graphPredictByHrs")
+            val hourlyReadings = mutableListOf<Pair<String, Double>>()
+            for (i in 0 until hourlyData.length()) {
+                val hourlyItem = hourlyData.getJSONArray(i)
+                val pm25Value = hourlyItem.getDouble(0)
+                val time = hourlyItem.getString(1)
+                // Extract the time in 24-hour format (HH:mm)
+                val date = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
+                val formattedTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(date.parse(time))
+                hourlyReadings.add(Pair(formattedTime, pm25Value))
+            }
+            
+            return PM25Data(pmCurrent, hourlyReadings, dateTimeString)
+        }
+    }
+}
+```
+
+
+`android\app\src\main\java\com\example\test_wid_and\util\WidgetUtil.kt`
+```kotlin
+package com.example.test_wid_and.util
+
+import android.content.Context
+import android.graphics.Color
+import android.widget.RemoteViews
+import com.example.test_wid_and.R
+import java.text.SimpleDateFormat
+import java.util.*
+
+object WidgetUtil {
+    
+    data class PM25Data(
+        val pmCurrent: Double?,
+        val hourlyReadings: List<Pair<String, Double>>?,
+        val dateThai: String?
+    )
+    
+    fun buildWidgetViews(context: Context, layoutId: Int, pm25Data: PM25Data): RemoteViews {
+        val views = RemoteViews(context.packageName, layoutId)
+        
+        // Extract data from PM25Data object
+        val pmCurrent = pm25Data.pmCurrent
+        val hourlyData = pm25Data.hourlyReadings
+        val dateThai = pm25Data.dateThai
+        
+        // Set PM2.5 value
+        views.setTextViewText(R.id.text_pm25, pmCurrent?.let { String.format("%.0f", it) } ?: "No data")
+        
+        // Add debug timestamp - current time in hh:mm:ss format
+        val currentTime = getCurrentTimeFormatted()
+        
+        // Determine background, images, and text color based on PM2.5 value
+        val (backgroundResId, humanImage, textColor, message) = when {
+            pmCurrent == null -> {
+                Quadruple(R.drawable.andwidjet1, R.drawable.verygood, "#FFFFFF", "No data")
+            }
+            pmCurrent <= 15 -> {
+                Quadruple(R.drawable.andwidjet1, R.drawable.verygood, "#FFFFFF", "อากาศดีมาก")
+            }
+            pmCurrent <= 25 -> {
+                views.setImageViewResource(R.id.nearme_id, R.drawable.near_me_dark)
+                Quadruple(R.drawable.andwidjet2, R.drawable.good, "#303C46", "อากาศดี")
+            }
+            pmCurrent <= 37.5 -> {
+                views.setImageViewResource(R.id.nearme_id, R.drawable.near_me_dark)
+                Quadruple(R.drawable.andwidjet3, R.drawable.medium, "#303C46", "ปานกลาง")
+            }
+            pmCurrent <= 75 -> {
+                Quadruple(R.drawable.andwidjet4, R.drawable.bad, "#FFFFFF", "เริ่มมีผลต่อสุขภาพ")
+            }
+            else -> {
+                Quadruple(R.drawable.andwidjet5, R.drawable.verybad, "#FFFFFF", "มีผลต่อสุขภาพ")
+            }
+        }
+        
+        // Apply widget UI configuration
+        views.setImageViewResource(R.id.widget_background, backgroundResId)
+        views.setImageViewResource(R.id.human_image, humanImage)
+        views.setTextViewText(R.id.text_recomend, message)
+        
+        // Set text colors
+        val colorParsed = Color.parseColor(textColor)
+        views.setTextColor(R.id.text_recomend, colorParsed)
+        views.setTextColor(R.id.text_pm25, colorParsed)
+        views.setTextColor(R.id.text_pm25_unit, colorParsed)
+        views.setTextColor(R.id.text_pm25_header, colorParsed)
+        views.setTextColor(R.id.date_text, colorParsed)
+        
+        // Clean and set date text with debug timestamp
+        val cleanedDateThai = dateThai?.replace(Regex("(จันทร์|อังคาร|พุธ|พฤหัสบดี|ศุกร์|เสาร์|อาทิตย์)"), "")
+        val dateWithDebugTime = "${cleanedDateThai ?: "No date"} [${currentTime}]"
+        views.setTextViewText(R.id.date_text, dateWithDebugTime)
+        
+        // Add hourly readings
+        views.removeAllViews(R.id.hourly_readings_container)
+        if (!hourlyData.isNullOrEmpty()) {
+            for ((hour, pm25) in hourlyData) {
+                val hourlyView = RemoteViews(context.packageName, R.layout.hourly_reading).apply {
+                    setTextViewText(R.id.hour_text, hour)
+                    setTextColor(R.id.pm_text, colorParsed)
+                    setTextColor(R.id.hour_text, colorParsed)
+                    setTextViewText(R.id.pm_text, String.format("%.1f", pm25))
+                }
+                views.addView(R.id.hourly_readings_container, hourlyView)
+            }
+        } else {
+            val noDataView = RemoteViews(context.packageName, R.layout.hourly_reading).apply {
+                setTextViewText(R.id.hour_text, "No data")
+                setTextViewText(R.id.pm_text, "No data")
+            }
+            views.addView(R.id.hourly_readings_container, noDataView)
+        }
+        
+        return views
+    }
+    
+    // Helper class for returning multiple values
+    data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+    
+    // Get current Thai time in HH:mm:ss format
+    fun getCurrentTimeFormatted(): String {
+        val date = Date()  // Current time
+        val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        sdf.timeZone = TimeZone.getTimeZone("Asia/Bangkok")  // Set to Thai time
+        return sdf.format(date)
+    }
+}
+```
+
+
+`android\app\src\main\java\com\example\test_wid_and\widget\MyHomeMediumWidget.kt`
+```kotlin
+package com.example.test_wid_and.widget
+
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.Context
+import android.content.Intent
+import android.util.Log
+import com.example.test_wid_and.worker.WidgetUpdateWorker
+
+/**
+ * Implementation of App Widget functionality for medium widget.
+ */
+class MyHomeMediumWidget : AppWidgetProvider() {
+    companion object {
+        private const val TAG = "MyHomeMediumWidget"
+    }
+
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray
+    ) {
+        Log.d(TAG, "onUpdate called with ${appWidgetIds.size} widgets")
+        
+        // Schedule the WorkManager job for periodic updates
+        WidgetUpdateWorker.enqueuePeriodicWork(context)
+    }
+    
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        Log.d(TAG, "Widget enabled, scheduling updates")
+        WidgetUpdateWorker.enqueuePeriodicWork(context)
+    }
+    
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        
+        // Handle manual refresh if needed
+        if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+            Log.d(TAG, "Received widget update request")
+            WidgetUpdateWorker.enqueuePeriodicWork(context)
+        }
+    }
+}
+```
+
+
+`android\app\src\main\java\com\example\test_wid_and\widget\MyHomeSmallWidget.kt`
+```kotlin
+package com.example.test_wid_and.widget
+
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.Context
+import android.content.Intent
+import android.util.Log
+import com.example.test_wid_and.worker.WidgetUpdateWorker
+
+/**
+ * Implementation of App Widget functionality for small widget.
+ */
+class MyHomeSmallWidget : AppWidgetProvider() {
+    companion object {
+        private const val TAG = "MyHomeSmallWidget"
+    }
+
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray
+    ) {
+        Log.d(TAG, "onUpdate called with ${appWidgetIds.size} widgets")
+        
+        // Schedule the WorkManager job for periodic updates
+        WidgetUpdateWorker.enqueuePeriodicWork(context)
+    }
+    
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        Log.d(TAG, "Widget enabled, scheduling updates")
+        WidgetUpdateWorker.enqueuePeriodicWork(context)
+    }
+    
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        
+        // Handle manual refresh if needed
+        if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+            Log.d(TAG, "Received widget update request")
+            WidgetUpdateWorker.enqueuePeriodicWork(context)
+        }
+    }
+}
+```
+
+
+`android\app\src\main\java\com\example\test_wid_and\worker\WidgetUpdateWorker.kt`
+```kotlin
+package com.example.test_wid_and.worker
+
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Context
+import android.util.Log
+import androidx.work.*
+import com.example.test_wid_and.R
+import com.example.test_wid_and.service.PM25Service
+import com.example.test_wid_and.util.WidgetUtil
+import com.example.test_wid_and.widget.MyHomeMediumWidget
+import com.example.test_wid_and.widget.MyHomeSmallWidget
+import es.antonborri.home_widget.HomeWidgetPlugin
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.util.concurrent.TimeUnit
+
+class WidgetUpdateWorker(context: Context, params: WorkerParameters) : 
+    CoroutineWorker(context, params) {
+        
+    companion object {
+        private const val TAG = "WidgetUpdateWorker"
+        const val WORK_NAME = "widget_update_work"
+        
+        fun enqueuePeriodicWork(context: Context) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+                
+            val periodicRequest = PeriodicWorkRequestBuilder<WidgetUpdateWorker>(
+                15, TimeUnit.MINUTES,  // Minimum interval in WorkManager is 15 minutes
+                5, TimeUnit.MINUTES    // Flex period
+            )
+                .setConstraints(constraints)
+                .build()
+                
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                WORK_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                periodicRequest
+            )
+            
+            // For immediate update (e.g., when app starts or widget is added)
+            val oneTimeRequest = OneTimeWorkRequestBuilder<WidgetUpdateWorker>()
+                .setConstraints(constraints)
+                .build()
+                
+            WorkManager.getInstance(context).enqueue(oneTimeRequest)
+            
+            Log.d(TAG, "Scheduled periodic widget updates every 15 minutes and immediate update")
+        }
+    }
+    
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        try {
+            val currentTime = WidgetUtil.getCurrentTimeFormatted()
+            Log.d(TAG, "Widget update started at $currentTime")
+            
+            // Get location data from HomeWidgetPlugin
+            val widgetData = HomeWidgetPlugin.getData(applicationContext)
+            val locationDataString = widgetData.getString("locationData_from_flutter_APP_new_5", null)
+            
+            if (locationDataString == null) {
+                Log.w(TAG, "No location data found")
+                return@withContext Result.failure()
+            }
+            
+            val parts = locationDataString.split(",")
+            if (parts.size < 2) {
+                Log.e(TAG, "Invalid location data format: $locationDataString")
+                return@withContext Result.failure()
+            }
+            
+            val latitude = parts[0].toDoubleOrNull()
+            val longitude = parts[1].toDoubleOrNull()
+            
+            if (latitude == null || longitude == null) {
+                Log.e(TAG, "Failed to parse coordinates: $locationDataString")
+                return@withContext Result.failure()
+            }
+            
+            Log.d(TAG, "Fetching PM2.5 data for location: $latitude, $longitude")
+            
+            // Fetch PM2.5 data
+            val pm25Data = PM25Service.fetchPM25Data(latitude, longitude)
+            
+            Log.d(TAG, "PM2.5 data received: ${pm25Data.pmCurrent ?: "No data"} μg/m³")
+            
+            // Update medium widget
+            val mediumAppWidgetManager = AppWidgetManager.getInstance(applicationContext)
+            val mediumWidgetIds = mediumAppWidgetManager.getAppWidgetIds(
+                ComponentName(applicationContext, MyHomeMediumWidget::class.java)
+            )
+            
+            Log.d(TAG, "Updating ${mediumWidgetIds.size} medium widgets")
+            
+            for (widgetId in mediumWidgetIds) {
+                val views = WidgetUtil.buildWidgetViews(
+                    applicationContext, 
+                    R.layout.my_home_medium_widget,
+                    pm25Data
+                )
+                mediumAppWidgetManager.updateAppWidget(widgetId, views)
+            }
+            
+            // Update small widget
+            val smallAppWidgetManager = AppWidgetManager.getInstance(applicationContext)
+            val smallWidgetIds = smallAppWidgetManager.getAppWidgetIds(
+                ComponentName(applicationContext, MyHomeSmallWidget::class.java)
+            )
+            
+            Log.d(TAG, "Updating ${smallWidgetIds.size} small widgets")
+            
+            for (widgetId in smallWidgetIds) {
+                val views = WidgetUtil.buildWidgetViews(
+                    applicationContext, 
+                    R.layout.my_home_small_widget,
+                    pm25Data
+                )
+                smallAppWidgetManager.updateAppWidget(widgetId, views)
+            }
+            
+            val endTime = WidgetUtil.getCurrentTimeFormatted()
+            Log.d(TAG, "Widget update completed successfully at $endTime")
+            Result.success()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating widgets", e)
+            Result.failure()
+        }
+    }
+}
+```
+
+
+`android\app\src\main\java\com\example\test_wid_and\WidgetApplication.kt`
+```kotlin
+package com.example.test_wid_and
+
+import android.app.Application
+import android.content.Context
+import android.util.Log
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleObserver
+import androidx.lifecycle.OnLifecycleEvent
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.work.Configuration
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.example.test_wid_and.worker.WidgetUpdateWorker
+
+class WidgetApplication : Application(), Configuration.Provider, LifecycleObserver {
+    companion object {
+        private const val TAG = "WidgetApplication"
+    }
+    
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(TAG, "Application created, setting up widget background updates")
+        
+        // Initialize periodic widget updates when app starts
+        WidgetUpdateWorker.enqueuePeriodicWork(this)
+        
+        // Register as lifecycle observer to detect when app comes to foreground
+        ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+    }
+    
+    @OnLifecycleEvent(Lifecycle.Event.ON_START)
+    fun onAppForegrounded() {
+        Log.d(TAG, "App came to foreground - triggering immediate widget update")
+        
+        // Trigger an immediate widget update when app is foregrounded
+        val oneTimeRequest = OneTimeWorkRequestBuilder<WidgetUpdateWorker>()
+            .build()
+        
+        WorkManager.getInstance(this).enqueue(oneTimeRequest)
+    }
+    
+    override fun getWorkManagerConfiguration(): Configuration {
+        return Configuration.Builder()
+            .setMinimumLoggingLevel(Log.INFO)
+            .build()
+    }
+}
+```
+
+
+`android\app\src\main\AndroidManifest.xml`
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" >
+
+    <!--
+     Required to query activities that can process text, see:
+         https://developer.android.com/training/package-visibility and
+         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT" />
+            <data android:mimeType="text/plain" />
+        </intent>
+    </queries>
+
+    <!-- Existing permissions -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    
+    <!-- Additional permissions needed for reliable background widget updates -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application
+        android:name=".WidgetApplication"
+        android:icon="@mipmap/ic_launcher"
+        android:label="test_wid_and" >
+        
+        <!-- Updated widget receivers with new package paths and exported=true -->
+        <receiver
+            android:name=".widget.MyHomeSmallWidget"
+            android:exported="true" >
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/my_home_small_widget_info" />
+        </receiver>
+
+        <service
+            android:name=".LocationService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <receiver
+            android:name=".widget.MyHomeMediumWidget"
+            android:exported="true" >
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/my_home_medium_widget_info" />
+        </receiver>
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:exported="true"
+            android:hardwareAccelerated="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:windowSoftInputMode="adjustResize" >
+
+            <!--
+                 Specifies an Android theme to apply to this Activity as soon as
+                 the Android process has started. This theme is visible to the user
+                 while the Flutter UI initializes. After that, this theme continues
+                 to determine the Window background behind the Flutter UI.
+            -->
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        
+        <!-- WorkManager initialization provider -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup" />
+        </provider>
+        
+        <!--
+        Don't delete the meta-data below.
+        This is used by the Flutter tool to generate GeneratedPluginRegistrant.java
+        -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+
+</manifest>
+```
+
+
+`android\settings.gradle.kts`
+```kts
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    } 
+}
+
+val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
+rootProject.layout.buildDirectory.value(newBuildDir)
+
+subprojects {
+    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.value(newSubprojectBuildDir)
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register<Delete>("clean") {
+    delete(rootProject.layout.buildDirectory)
+}
+```
+
+
+`lib\constants\app_constants.dart`
+```dart
+class AppConstants {
+  // App Group ID for widget communication
+  static const String appGroupId = "group.homescreenaapp";
+  
+  // Widget names
+  static const String iOSWidgetName = "MyHomeWidget";
+  static const String androidMediumWidgetName = "MyHomeMediumWidget";
+  static const String androidSmallWidgetName = "MyHomeSmallWidget";
+  
+  // Data keys
+  static const String dataKey = "locationData_from_flutter_APP_new_5";
+}
+```
+
+
+`lib\screens\location_page.dart`
+```dart
+import 'package:flutter/material.dart';
+import '../services/location_service.dart';
+import '../services/widget_service.dart';
+import '../constants/app_constants.dart';
+import 'package:home_widget/home_widget.dart';
+
+class LocationPage extends StatefulWidget {
+  @override
+  _LocationPageState createState() => _LocationPageState();
+}
+
+class _LocationPageState extends State<LocationPage> with WidgetsBindingObserver {
+  final LocationService _locationService = LocationService();
+  final WidgetService _widgetService = WidgetService();
+  String locationMessage = "Press the button to get location";
+
+  @override
+  void initState() {
+    super.initState();
+    // Register as an observer for app lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
+    _initServices();
+  }
+
+  @override
+  void dispose() {
+    // Unregister observer when the page is disposed
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // This method is called whenever the app lifecycle state changes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // App has come to the foreground - update widgets
+      print('App resumed - updating widgets');
+      _getCurrentLocation();
+    }
+  }
+
+  Future<void> _initServices() async {
+    await _widgetService.initialize();
+    _getCurrentLocation();
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      final locationResult = await _locationService.getCurrentLocation();
+      
+      setState(() {
+        if (locationResult.error != null) {
+          locationMessage = locationResult.error!;
+        } else if (locationResult.position != null) {
+          locationMessage = "Latitude: ${locationResult.position!.latitude}, "
+              "Longitude: ${locationResult.position!.longitude}";
+          
+          // Update widgets with new location
+          _widgetService.updateWidgetsWithLocation(
+            locationResult.position!.latitude, 
+            locationResult.position!.longitude
+          );
+        }
+      });
+    } catch (e) {
+      setState(() {
+        locationMessage = "Error getting location: $e";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("Get Current Location")),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(locationMessage, textAlign: TextAlign.center),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _getCurrentLocation,
+              child: Text("Get Location"),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                // Force immediate widget update
+                await HomeWidget.updateWidget(
+                  iOSName: AppConstants.iOSWidgetName,
+                  androidName: AppConstants.androidMediumWidgetName
+                );
+                await HomeWidget.updateWidget(
+                  androidName: AppConstants.androidSmallWidgetName
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Widgets updated manually'))
+                );
+              },
+              child: Text("Force Update Widgets"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+
+`lib\services\location_service.dart`
+```dart
+import 'package:geolocator/geolocator.dart';
+
+class LocationResult {
+  final Position? position;
+  final String? error;
+
+  LocationResult({this.position, this.error});
+}
+
+class LocationService {
+  Future<LocationResult> getCurrentLocation() async {
+    // Check if location services are enabled
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return LocationResult(error: "Location services are disabled.");
+    }
+
+    // Check location permission
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return LocationResult(error: "Location permission denied.");
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      return LocationResult(
+        error: "Location permissions are permanently denied."
+      );
+    }
+
+    // Get current location
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      return LocationResult(position: position);
+    } catch (e) {
+      return LocationResult(error: "Error getting location: $e");
+    }
+  }
+}
+```
+
+
+`lib\services\widget_service.dart`
+```dart
+import 'package:home_widget/home_widget.dart';
+import '../constants/app_constants.dart';
+import 'package:geolocator/geolocator.dart';
+
+class WidgetService {
+  Future<void> initialize() async {
+    await HomeWidget.setAppGroupId(AppConstants.appGroupId);
+  }
+
+  Future<void> updateWidgetsWithLocation(double latitude, double longitude) async {
+    String data = "$latitude,$longitude";
+    
+    try {
+      // Save location data for widgets
+      await HomeWidget.saveWidgetData(AppConstants.dataKey, data);
+      
+      // Update iOS widget
+      await HomeWidget.updateWidget(
+        iOSName: AppConstants.iOSWidgetName
+      );
+      
+      // Update Android widgets
+      await HomeWidget.updateWidget(
+        androidName: AppConstants.androidMediumWidgetName
+      );
+      await HomeWidget.updateWidget(
+        androidName: AppConstants.androidSmallWidgetName
+      );
+      
+      print("Widgets updated with location: $data at ${DateTime.now().toLocal()}");
+    } catch (e) {
+      print("Error updating widgets: $e");
+    }
+  }
+
+  /// Force update widgets with last saved location
+  Future<void> forceWidgetUpdate() async {
+    try {
+      // Update iOS widget
+      await HomeWidget.updateWidget(
+        iOSName: AppConstants.iOSWidgetName
+      );
+      
+      // Update Android widgets
+      await HomeWidget.updateWidget(
+        androidName: AppConstants.androidMediumWidgetName
+      );
+      await HomeWidget.updateWidget(
+        androidName: AppConstants.androidSmallWidgetName
+      );
+      
+      print("Widgets force updated at ${DateTime.now().toLocal()}");
+    } catch (e) {
+      print("Error force updating widgets: $e");
+    }
+  }
+
+  /// Get last saved location and update widgets with it
+  Future<void> updateWithLastLocation() async {
+    try {
+      // Try to get the last location from Geolocator
+      Position? lastPosition = await Geolocator.getLastKnownPosition();
+      
+      // If we have a last position, use it to update the widgets
+      if (lastPosition != null) {
+        await updateWidgetsWithLocation(
+          lastPosition.latitude, 
+          lastPosition.longitude
+        );
+      } else {
+        // If no last position, just force update with whatever data is stored
+        await forceWidgetUpdate();
+      }
+    } catch (e) {
+      print("Error updating with last location: $e");
+      // Fall back to force update if there's an error
+      await forceWidgetUpdate();
+    }
+  }
+}
+```
+
+
+`lib\utils\permissions_helper.dart`
+```dart
+import 'package:geolocator/geolocator.dart';
+
+class PermissionsHelper {
+  static Future<bool> checkAndRequestLocationPermission() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return false;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return false;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      return false;
+    }
+
+    return true;
+  }
+}
+```
+
+
+`lib\main.dart`
+```dart
+import 'package:flutter/material.dart';
+import 'package:home_widget/home_widget.dart';
+import 'screens/location_page.dart';
+import 'constants/app_constants.dart';
+import 'services/widget_service.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Set up HomeWidget and trigger immediate widget update
+  HomeWidget.setAppGroupId(AppConstants.appGroupId);
+  
+  // Initialize the app
+  runApp(const MyApp());
+  
+  // Update widgets when app starts
+  _updateWidgetsOnAppStart();
+}
+
+Future<void> _updateWidgetsOnAppStart() async {
+  // Create WidgetService instance and request an immediate update
+  final widgetService = WidgetService();
+  await widgetService.initialize();
+  
+  // Force widgets to update on both platforms
+  await HomeWidget.updateWidget(
+    iOSName: AppConstants.iOSWidgetName,
+    androidName: AppConstants.androidMediumWidgetName
+  );
+  
+  await HomeWidget.updateWidget(
+    androidName: AppConstants.androidSmallWidgetName
+  );
+  
+  print('Widgets updated on app start');
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false, 
+      home: LocationPage()
+    );
+  }
+}
+```
