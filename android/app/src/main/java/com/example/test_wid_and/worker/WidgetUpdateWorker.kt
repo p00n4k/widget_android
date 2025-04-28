@@ -1,4 +1,3 @@
-// android/app/src/main/java/com/example/test_wid_and/worker/WidgetUpdateWorker.kt
 package com.example.test_wid_and.worker
 
 import android.appwidget.AppWidgetManager
@@ -47,12 +46,15 @@ class WidgetUpdateWorker(context: Context, params: WorkerParameters) :
                 .build()
                 
             WorkManager.getInstance(context).enqueue(oneTimeRequest)
+            
+            Log.d(TAG, "Scheduled periodic widget updates every 15 minutes and immediate update")
         }
     }
     
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "Widget update worker started")
+            val currentTime = WidgetUtil.getCurrentTimeFormatted()
+            Log.d(TAG, "Widget update started at $currentTime")
             
             // Get location data from HomeWidgetPlugin
             val widgetData = HomeWidgetPlugin.getData(applicationContext)
@@ -77,14 +79,20 @@ class WidgetUpdateWorker(context: Context, params: WorkerParameters) :
                 return@withContext Result.failure()
             }
             
+            Log.d(TAG, "Fetching PM2.5 data for location: $latitude, $longitude")
+            
             // Fetch PM2.5 data
             val pm25Data = PM25Service.fetchPM25Data(latitude, longitude)
+            
+            Log.d(TAG, "PM2.5 data received: ${pm25Data.pmCurrent ?: "No data"} μg/m³")
             
             // Update medium widget
             val mediumAppWidgetManager = AppWidgetManager.getInstance(applicationContext)
             val mediumWidgetIds = mediumAppWidgetManager.getAppWidgetIds(
                 ComponentName(applicationContext, MyHomeMediumWidget::class.java)
             )
+            
+            Log.d(TAG, "Updating ${mediumWidgetIds.size} medium widgets")
             
             for (widgetId in mediumWidgetIds) {
                 val views = WidgetUtil.buildWidgetViews(
@@ -101,6 +109,8 @@ class WidgetUpdateWorker(context: Context, params: WorkerParameters) :
                 ComponentName(applicationContext, MyHomeSmallWidget::class.java)
             )
             
+            Log.d(TAG, "Updating ${smallWidgetIds.size} small widgets")
+            
             for (widgetId in smallWidgetIds) {
                 val views = WidgetUtil.buildWidgetViews(
                     applicationContext, 
@@ -110,7 +120,8 @@ class WidgetUpdateWorker(context: Context, params: WorkerParameters) :
                 smallAppWidgetManager.updateAppWidget(widgetId, views)
             }
             
-            Log.d(TAG, "Widget update completed successfully")
+            val endTime = WidgetUtil.getCurrentTimeFormatted()
+            Log.d(TAG, "Widget update completed successfully at $endTime")
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Error updating widgets", e)

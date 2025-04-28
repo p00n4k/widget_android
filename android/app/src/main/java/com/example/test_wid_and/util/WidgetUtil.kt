@@ -1,4 +1,3 @@
-// android/app/src/main/java/com/example/test_wid_and/util/WidgetUtil.kt
 package com.example.test_wid_and.util
 
 import android.content.Context
@@ -26,6 +25,9 @@ object WidgetUtil {
         
         // Set PM2.5 value
         views.setTextViewText(R.id.text_pm25, pmCurrent?.let { String.format("%.0f", it) } ?: "No data")
+        
+        // Add debug timestamp - current time in hh:mm:ss format
+        val currentTime = getCurrentTimeFormatted()
         
         // Determine background, images, and text color based on PM2.5 value
         val (backgroundResId, humanImage, textColor, message) = when {
@@ -64,9 +66,10 @@ object WidgetUtil {
         views.setTextColor(R.id.text_pm25_header, colorParsed)
         views.setTextColor(R.id.date_text, colorParsed)
         
-        // Clean and set date text
+        // Clean and set date text with debug timestamp
         val cleanedDateThai = dateThai?.replace(Regex("(จันทร์|อังคาร|พุธ|พฤหัสบดี|ศุกร์|เสาร์|อาทิตย์)"), "")
-        views.setTextViewText(R.id.date_text, cleanedDateThai ?: "No date")
+        val dateWithDebugTime = "${cleanedDateThai ?: "No date"} [${currentTime}]"
+        views.setTextViewText(R.id.date_text, dateWithDebugTime)
         
         // Add hourly readings
         views.removeAllViews(R.id.hourly_readings_container)
@@ -94,7 +97,8 @@ object WidgetUtil {
     // Helper class for returning multiple values
     data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
     
-    fun getCurrentThaiTime(): String {
+    // Get current Thai time in HH:mm:ss format
+    fun getCurrentTimeFormatted(): String {
         val date = Date()  // Current time
         val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
         sdf.timeZone = TimeZone.getTimeZone("Asia/Bangkok")  // Set to Thai time
