@@ -6,15 +6,53 @@ import android.content.ComponentName
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import android.appwidget.AppWidgetManager
 import com.example.test_wid_and.service.WidgetUpdateForegroundService
 import com.example.test_wid_and.service.WidgetUpdateJobService
+import com.example.test_wid_and.widget.MyHomeMediumWidget
+import com.example.test_wid_and.widget.MyHomeSmallWidget
 import java.util.concurrent.TimeUnit
 
 object JobSchedulerHelper {
     private const val TAG = "JobSchedulerHelper"
     
+    // Check if any widgets are currently active
+    fun hasActiveWidgets(context: Context): Boolean {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        
+        // Check medium widgets
+        val mediumWidgetIds = appWidgetManager.getAppWidgetIds(
+            ComponentName(context, MyHomeMediumWidget::class.java)
+        )
+        
+        // Check small widgets
+        val smallWidgetIds = appWidgetManager.getAppWidgetIds(
+            ComponentName(context, MyHomeSmallWidget::class.java)
+        )
+        
+        val totalWidgets = mediumWidgetIds.size + smallWidgetIds.size
+        Log.d(TAG, "Found $totalWidgets active widgets")
+        
+        return totalWidgets > 0
+    }
+    
+    // Cancel any scheduled widget update jobs
+    fun cancelWidgetUpdateJob(context: Context) {
+        val jobScheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
+        jobScheduler.cancel(WidgetUpdateJobService.JOB_ID)
+        Log.d(TAG, "Widget update job canceled")
+    }
+    
     // Schedule the job to update widgets every 15 minutes
     fun scheduleWidgetUpdateJob(context: Context) {
+        // First check if there are any widgets to update
+        if (!hasActiveWidgets(context)) {
+            Log.d(TAG, "No widgets found, not scheduling updates")
+            // Cancel any existing jobs since they're not needed
+            cancelWidgetUpdateJob(context)
+            return
+        }
+        
         val jobScheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
         val componentName = ComponentName(context, WidgetUpdateJobService::class.java)
         
@@ -52,7 +90,12 @@ object JobSchedulerHelper {
     
     // Run immediate widget update using the foreground service
     fun runImmediateWidgetUpdate(context: Context) {
-        Log.d(TAG, "Running immediate widget update")
-        WidgetUpdateForegroundService.startService(context)
+        // Only update if there are widgets to update
+        if (hasActiveWidgets(context)) {
+            Log.d(TAG, "Running immediate widget update")
+            WidgetUpdateForegroundService.startService(context)
+        } else {
+            Log.d(TAG, "No widgets to update, skipping immediate update")
+        }
     }
 }

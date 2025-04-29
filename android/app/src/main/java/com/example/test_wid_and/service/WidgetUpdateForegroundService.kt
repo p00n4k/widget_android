@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import com.example.test_wid_and.MainActivity
 import com.example.test_wid_and.R
 import com.example.test_wid_and.util.WidgetUtil
+import com.example.test_wid_and.util.JobSchedulerHelper
 import com.example.test_wid_and.widget.MyHomeMediumWidget
 import com.example.test_wid_and.widget.MyHomeSmallWidget
 import android.appwidget.AppWidgetManager
@@ -81,6 +82,12 @@ class WidgetUpdateForegroundService : Service() {
     private suspend fun updateWidgets() {
         val currentTime = WidgetUtil.getCurrentTimeFormatted()
         Log.d(TAG, "Widget update started at $currentTime in foreground service")
+
+        // Check if any widgets exist before proceeding
+        if (!JobSchedulerHelper.hasActiveWidgets(applicationContext)) {
+            Log.d(TAG, "No widgets found, canceling update")
+            return
+        }
         
         // Get location data from HomeWidgetPlugin
         val widgetData = HomeWidgetPlugin.getData(applicationContext)

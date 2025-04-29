@@ -41,6 +41,17 @@ abstract class BaseWidgetProvider : AppWidgetProvider() {
         }, 1000)
     }
     
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        Log.d(TAG, "All widgets of this type removed")
+        
+        // Check if there are any widgets of any type left
+        if (!JobSchedulerHelper.hasActiveWidgets(context)) {
+            Log.d(TAG, "No widgets of any type left, canceling all updates")
+            JobSchedulerHelper.cancelWidgetUpdateJob(context)
+        }
+    }
+    
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         

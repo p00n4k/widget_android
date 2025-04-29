@@ -21,28 +21,35 @@ class WidgetApplication : Application(), LifecycleObserver {
     
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "Application created, setting up widget background updates")
+        Log.d(TAG, "Application created")
         
         // Check battery optimization status
         val isBatteryOptimized = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this)
         Log.d(TAG, "Battery optimization ignored: $isBatteryOptimized")
         
-        // Initialize widget update mechanisms - use JobScheduler only
-        JobSchedulerHelper.scheduleWidgetUpdateJob(this)
+        // Only schedule updates if widgets exist
+        if (JobSchedulerHelper.hasActiveWidgets(this)) {
+            Log.d(TAG, "Widgets found, setting up background updates")
+            JobSchedulerHelper.scheduleWidgetUpdateJob(this)
+            
+            // Force immediate first update
+            WidgetUpdateForegroundService.startService(this) 
+        } else {
+            Log.d(TAG, "No widgets found, skipping update scheduling")
+        }
         
         // Register as lifecycle observer
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
-        
-        // Force immediate first update
-        WidgetUpdateForegroundService.startService(this)
     }
     
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
     fun onAppForegrounded() {
-        // Only update if app was previously in background
-        if (wasInBackground) {
-            Log.d(TAG, "App came to foreground from background - triggering immediate widget update")
+        // Only update if app was previously in background AND widgets exist
+        if (wasInBackground && JobSchedulerHelper.hasActiveWidgets(this)) {
+            Log.d(TAG, "App came to foreground, widgets exist - triggering update")
             WidgetUpdateForegroundService.startService(this)
+            wasInBackground = false
+        } else {
             wasInBackground = false
         }
     }
