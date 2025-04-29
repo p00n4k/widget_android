@@ -4,8 +4,9 @@ import android.app.job.JobInfo
 import android.app.job.JobScheduler
 import android.content.ComponentName
 import android.content.Context
-import android.os.PersistableBundle
+import android.os.Build
 import android.util.Log
+import com.example.test_wid_and.service.WidgetUpdateForegroundService
 import com.example.test_wid_and.service.WidgetUpdateJobService
 import java.util.concurrent.TimeUnit
 
@@ -17,11 +18,33 @@ object JobSchedulerHelper {
         val jobScheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
         val componentName = ComponentName(context, WidgetUpdateJobService::class.java)
         
+        // Cancel any existing jobs
+        jobScheduler.cancel(WidgetUpdateJobService.JOB_ID)
+        
+        // Use minimum periodic interval allowed by Android
+        // For Android 8+ (Oreo), minimum is 15 minutes
+        // For older Android versions, we can go as low as 1 minute
+        val intervalMillis = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            TimeUnit.MINUTES.toMillis(15) // 15 mins for Android 8+
+        } else {
+            TimeUnit.MINUTES.toMillis(15) // 15 mins for older versions
+        }
+        
         val jobInfoBuilder = JobInfo.Builder(WidgetUpdateJobService.JOB_ID, componentName)
             .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
             .setPersisted(true) // Job persists across reboots
-            .setPeriodic(TimeUnit.MINUTES.toMillis(15)) // 15 minute interval
-            
+        
+        // Set periodic timing based on Android version
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            // For Android 7+ (Nougat), we can use minimum flex interval
+            jobInfoBuilder.setPeriodic(
+                intervalMillis,
+                JobInfo.getMinFlexMillis() // Minimum flex time
+            )
+        } else {
+            jobInfoBuilder.setPeriodic(intervalMillis)
+        }
+        
         // Schedule the job
         val result = jobScheduler.schedule(jobInfoBuilder.build())
         
@@ -32,23 +55,9 @@ object JobSchedulerHelper {
         }
     }
     
-    // Run immediate widget update
+    // Run immediate widget update using the foreground service
     fun runImmediateWidgetUpdate(context: Context) {
-        val jobScheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
-        val componentName = ComponentName(context, WidgetUpdateJobService::class.java)
-        
-        // Create a one-time job for immediate execution
-        val jobInfoBuilder = JobInfo.Builder(WidgetUpdateJobService.JOB_ID + 1, componentName)
-            .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-            .setOverrideDeadline(0) // Run immediately
-            
-        // Schedule the immediate job
-        val result = jobScheduler.schedule(jobInfoBuilder.build())
-        
-        if (result == JobScheduler.RESULT_SUCCESS) {
-            Log.d(TAG, "Immediate widget update job scheduled")
-        } else {
-            Log.e(TAG, "Failed to schedule immediate widget update job")
-        }
+        // Start the foreground service for immediate update
+        WidgetUpdateForegroundService.startService(context)
     }
 }

@@ -4,6 +4,8 @@ import 'package:home_widget/home_widget.dart';
 import 'screens/location_page.dart';
 import 'constants/app_constants.dart';
 import 'services/widget_service.dart';
+import 'dart:io';
+import 'package:flutter/services.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,11 +13,32 @@ void main() {
   // Set up HomeWidget and trigger immediate widget update
   HomeWidget.setAppGroupId(AppConstants.appGroupId);
   
+  // Request battery optimization exception on Android
+  if (Platform.isAndroid) {
+    _requestBatteryOptimizationExemption();
+  }
+  
   // Initialize the app
   runApp(const MyApp());
   
   // Update widgets when app starts
   _updateWidgetsOnAppStart();
+}
+
+Future<void> _requestBatteryOptimizationExemption() async {
+  try {
+    const platform = MethodChannel('com.example.test_wid_and/battery_optimization');
+    final bool isIgnoring = await platform.invokeMethod('isIgnoringBatteryOptimizations');
+    
+    if (!isIgnoring) {
+      final bool requested = await platform.invokeMethod('requestIgnoreBatteryOptimizations');
+      print('Battery optimization exemption requested: $requested');
+    } else {
+      print('Already ignoring battery optimizations');
+    }
+  } catch (e) {
+    print('Error with battery optimization: $e');
+  }
 }
 
 Future<void> _updateWidgetsOnAppStart() async {

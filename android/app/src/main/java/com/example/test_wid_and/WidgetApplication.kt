@@ -8,6 +8,8 @@ import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
+import com.example.test_wid_and.service.WidgetUpdateForegroundService
+import com.example.test_wid_and.util.BatteryOptimizationHelper
 import com.example.test_wid_and.util.JobSchedulerHelper
 
 class WidgetApplication : Application(), Configuration.Provider, LifecycleObserver {
@@ -19,19 +21,24 @@ class WidgetApplication : Application(), Configuration.Provider, LifecycleObserv
         super.onCreate()
         Log.d(TAG, "Application created, setting up widget background updates")
         
-        // Initialize persistent widget updates with JobScheduler
+        // Check battery optimization status
+        val isBatteryOptimized = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this)
+        Log.d(TAG, "Battery optimization ignored: $isBatteryOptimized")
+        
+        // Initialize widget update mechanisms
         JobSchedulerHelper.scheduleWidgetUpdateJob(this)
         
-        // Register as lifecycle observer to detect when app comes to foreground
+        // Register as lifecycle observer
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+        
+        // Force immediate first update
+        WidgetUpdateForegroundService.startService(this)
     }
     
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
     fun onAppForegrounded() {
         Log.d(TAG, "App came to foreground - triggering immediate widget update")
-        
-        // Trigger an immediate widget update when app is foregrounded
-        JobSchedulerHelper.runImmediateWidgetUpdate(this)
+        WidgetUpdateForegroundService.startService(this)
     }
     
     override fun getWorkManagerConfiguration(): Configuration {
