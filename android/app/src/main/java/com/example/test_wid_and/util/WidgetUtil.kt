@@ -97,11 +97,15 @@ object WidgetUtil {
     // Helper class for returning multiple values
     data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
     
-    // Get current Thai time in HH:mm:ss format
+    // Get current Thai time in HH:mm:ss format - with time zone caching for efficiency
     fun getCurrentTimeFormatted(): String {
         val date = Date()  // Current time
-        val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        sdf.timeZone = TimeZone.getTimeZone("Asia/Bangkok")  // Set to Thai time
-        return sdf.format(date)
+        // Use static formatter for better performance
+        return timeFormatter.format(date)
+    }
+
+    // Add this static formatter at the class level
+    private val timeFormatter = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).apply {
+        timeZone = TimeZone.getTimeZone("Asia/Bangkok")  // Set to Thai time
     }
 }

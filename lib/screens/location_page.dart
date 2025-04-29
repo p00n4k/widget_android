@@ -1,9 +1,6 @@
-// lib/screens/location_page.dart
 import 'package:flutter/material.dart';
 import '../services/location_service.dart';
 import '../services/widget_service.dart';
-import '../constants/app_constants.dart';
-import 'package:home_widget/home_widget.dart';
 
 class LocationPage extends StatefulWidget {
   @override
@@ -14,6 +11,9 @@ class _LocationPageState extends State<LocationPage> with WidgetsBindingObserver
   final LocationService _locationService = LocationService();
   final WidgetService _widgetService = WidgetService();
   String locationMessage = "Press the button to get location";
+  
+  // Track if we've updated widgets in this session
+  bool _hasUpdatedWidgetsThisSession = false;
 
   @override
   void initState() {
@@ -33,16 +33,21 @@ class _LocationPageState extends State<LocationPage> with WidgetsBindingObserver
   // This method is called whenever the app lifecycle state changes
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // App has come to the foreground - update widgets
+    if (state == AppLifecycleState.resumed && !_hasUpdatedWidgetsThisSession) {
+      // App has come to the foreground - update widgets once per session
       print('App resumed - updating widgets');
       _getCurrentLocation();
+      _hasUpdatedWidgetsThisSession = true;
+    } else if (state == AppLifecycleState.paused) {
+      // Reset the flag when app goes to background
+      _hasUpdatedWidgetsThisSession = false;
     }
   }
 
   Future<void> _initServices() async {
     await _widgetService.initialize();
     _getCurrentLocation();
+    _hasUpdatedWidgetsThisSession = true; // Mark as updated for this session
   }
 
   Future<void> _getCurrentLocation() async {
@@ -88,13 +93,7 @@ class _LocationPageState extends State<LocationPage> with WidgetsBindingObserver
             ElevatedButton(
               onPressed: () async {
                 // Force immediate widget update
-                await HomeWidget.updateWidget(
-                  iOSName: AppConstants.iOSWidgetName,
-                  androidName: AppConstants.androidMediumWidgetName
-                );
-                await HomeWidget.updateWidget(
-                  androidName: AppConstants.androidSmallWidgetName
-                );
+                await _widgetService.forceWidgetUpdate();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Widgets updated manually'))
                 );

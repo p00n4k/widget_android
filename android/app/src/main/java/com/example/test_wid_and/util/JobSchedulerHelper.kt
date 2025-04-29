@@ -18,17 +18,11 @@ object JobSchedulerHelper {
         val jobScheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
         val componentName = ComponentName(context, WidgetUpdateJobService::class.java)
         
-        // Cancel any existing jobs
+        // Cancel any existing jobs with this ID
         jobScheduler.cancel(WidgetUpdateJobService.JOB_ID)
         
-        // Use minimum periodic interval allowed by Android
-        // For Android 8+ (Oreo), minimum is 15 minutes
-        // For older Android versions, we can go as low as 1 minute
-        val intervalMillis = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            TimeUnit.MINUTES.toMillis(15) // 15 mins for Android 8+
-        } else {
-            TimeUnit.MINUTES.toMillis(15) // 15 mins for older versions
-        }
+        // Configure update interval - 15 minutes
+        val intervalMillis = TimeUnit.MINUTES.toMillis(15)
         
         val jobInfoBuilder = JobInfo.Builder(WidgetUpdateJobService.JOB_ID, componentName)
             .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
@@ -36,10 +30,11 @@ object JobSchedulerHelper {
         
         // Set periodic timing based on Android version
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            // For Android 7+ (Nougat), we can use minimum flex interval
+            // For Android 7+ (Nougat), we can use flex interval
+            // Setting flex to 5 minutes gives system some flexibility for battery optimization
             jobInfoBuilder.setPeriodic(
                 intervalMillis,
-                JobInfo.getMinFlexMillis() // Minimum flex time
+                TimeUnit.MINUTES.toMillis(5)
             )
         } else {
             jobInfoBuilder.setPeriodic(intervalMillis)
@@ -49,7 +44,7 @@ object JobSchedulerHelper {
         val result = jobScheduler.schedule(jobInfoBuilder.build())
         
         if (result == JobScheduler.RESULT_SUCCESS) {
-            Log.d(TAG, "Widget update job scheduled successfully")
+            Log.d(TAG, "Widget update job scheduled successfully every 15 minutes")
         } else {
             Log.e(TAG, "Failed to schedule widget update job")
         }
@@ -57,7 +52,7 @@ object JobSchedulerHelper {
     
     // Run immediate widget update using the foreground service
     fun runImmediateWidgetUpdate(context: Context) {
-        // Start the foreground service for immediate update
+        Log.d(TAG, "Running immediate widget update")
         WidgetUpdateForegroundService.startService(context)
     }
 }

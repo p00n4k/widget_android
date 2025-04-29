@@ -7,14 +7,16 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
 import androidx.lifecycle.ProcessLifecycleOwner
-import androidx.work.Configuration
 import com.example.test_wid_and.service.WidgetUpdateForegroundService
 import com.example.test_wid_and.util.BatteryOptimizationHelper
 import com.example.test_wid_and.util.JobSchedulerHelper
 
-class WidgetApplication : Application(), Configuration.Provider, LifecycleObserver {
+class WidgetApplication : Application(), LifecycleObserver {
     companion object {
         private const val TAG = "WidgetApplication"
+        
+        // Track app foreground state to prevent excessive updates
+        private var wasInBackground = true
     }
     
     override fun onCreate() {
@@ -25,7 +27,7 @@ class WidgetApplication : Application(), Configuration.Provider, LifecycleObserv
         val isBatteryOptimized = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this)
         Log.d(TAG, "Battery optimization ignored: $isBatteryOptimized")
         
-        // Initialize widget update mechanisms
+        // Initialize widget update mechanisms - use JobScheduler only
         JobSchedulerHelper.scheduleWidgetUpdateJob(this)
         
         // Register as lifecycle observer
@@ -37,13 +39,17 @@ class WidgetApplication : Application(), Configuration.Provider, LifecycleObserv
     
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
     fun onAppForegrounded() {
-        Log.d(TAG, "App came to foreground - triggering immediate widget update")
-        WidgetUpdateForegroundService.startService(this)
+        // Only update if app was previously in background
+        if (wasInBackground) {
+            Log.d(TAG, "App came to foreground from background - triggering immediate widget update")
+            WidgetUpdateForegroundService.startService(this)
+            wasInBackground = false
+        }
     }
     
-    override fun getWorkManagerConfiguration(): Configuration {
-        return Configuration.Builder()
-            .setMinimumLoggingLevel(Log.INFO)
-            .build()
+    @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
+    fun onAppBackgrounded() {
+        Log.d(TAG, "App went to background")
+        wasInBackground = true
     }
 }

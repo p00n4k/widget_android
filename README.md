@@ -611,16 +611,55 @@ class MyHomeSmallWidget : AppWidgetProvider() {
 
 
 
-I have a flutter project code with some kotlin integrated code. This is a test application that dedicated to one feature. This feature I am working with in the widget for air quality monitoring application. Now the widget is working correctly as it should be. It will always update data every 15 minutes. When I open an application, it will force update right away. However, there is one issue I want you to solve. When I completely closed (or killed the app), the widget is not working as it should be anymore. It no longer update the data. I will show you the code I have below. When you give me a solution, label each code snipped which file I should update (or create) too.
+I have a flutter project code with native kotlin integrated code. This is a test application that dedicated to one feature; the widget for air quality monitoring application. Now the widget is working correctly as it should be. It will always update data every 15 minutes (around that). When I open an application, it will force update right away. Even when I closed or killed an app, the widget will still working. But I have a task for you in the following
+1. However, the code is getting messy and I solve bug and work on it, some part of the code may not be use anymore. I want you to check all of it and clean it. Basically clean and refactor is nescessary.
+2. I want to set an update interval to 15 minutes, reguardless when app is closed or in standby state. But only do instant update when user open an app (just update it once each time user enter an app, do not make it update every second while user is in the app)
+3. Battery and resource optimization is a main goal here, but the widget must still function as I mentioned. 
+I will show you the code I have below. When you give me a solution, label each code snipped which file I should update (or create) too.
 
+`android\app\src\main\java\com\example\test_wid_and\receiver\SystemEventReceiver.kt`
+```kotlin
+package com.example.test_wid_and.receiver
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.util.Log
+import com.example.test_wid_and.util.JobSchedulerHelper
 
-
-
+/**
+ * BroadcastReceiver to handle system events that should trigger widget updates.
+ */
+class SystemEventReceiver : BroadcastReceiver() {
+    companion object {
+        private const val TAG = "SystemEventReceiver"
+    }
+    
+    override fun onReceive(context: Context, intent: Intent) {
+        Log.d(TAG, "Received system event: ${intent.action}")
+        
+        when (intent.action) {
+            Intent.ACTION_BOOT_COMPLETED -> {
+                Log.d(TAG, "Device booted, restarting widget updates")
+                JobSchedulerHelper.scheduleWidgetUpdateJob(context)
+            }
+            Intent.ACTION_MY_PACKAGE_REPLACED -> {
+                Log.d(TAG, "App updated, restarting widget updates")
+                JobSchedulerHelper.scheduleWidgetUpdateJob(context)
+            }
+            Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED -> {
+                Log.d(TAG, "Time/timezone changed, updating widgets")
+                JobSchedulerHelper.runImmediateWidgetUpdate(context)
+            }
+        }
+    }
+}
+```
 
 
 `android\app\src\main\java\com\example\test_wid_and\service\PM25Service.kt`
 ```kotlin
+// android/app/src/main/java/com/example/test_wid_and/service/PM25Service.kt
 package com.example.test_wid_and.service
 
 import com.example.test_wid_and.util.WidgetUtil.PM25Data
@@ -685,6 +724,341 @@ class PM25Service {
 }
 ```
 
+`android\app\src\main\java\com\example\test_wid_and\service\WidgetUpdateForegroundService.kt`
+```kotlin
+package com.example.test_wid_and.service
+
+import android.app.*
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.IBinder
+import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.example.test_wid_and.MainActivity
+import com.example.test_wid_and.R
+import com.example.test_wid_and.util.WidgetUtil
+import com.example.test_wid_and.widget.MyHomeMediumWidget
+import com.example.test_wid_and.widget.MyHomeSmallWidget
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import es.antonborri.home_widget.HomeWidgetPlugin
+import kotlinx.coroutines.*
+
+class WidgetUpdateForegroundService : Service() {
+    companion object {
+        private const val TAG = "WidgetUpdateFgService"
+        private const val NOTIFICATION_ID = 1001
+        private const val CHANNEL_ID = "widget_update_channel"
+        
+        fun startService(context: Context) {
+            val intent = Intent(context, WidgetUpdateForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+            Log.d(TAG, "Service start requested")
+        }
+    }
+    
+    private val serviceJob = SupervisorJob()
+    private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
+    
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(TAG, "Service created")
+        createNotificationChannel()
+    }
+    
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "Service started, updating widgets")
+        
+        // Show a foreground notification
+        val notification = createNotification()
+        startForeground(NOTIFICATION_ID, notification)
+        
+        // Update widgets in background
+        serviceScope.launch {
+            try {
+                updateWidgets()
+                // Schedule next update with JobScheduler
+                com.example.test_wid_and.util.JobSchedulerHelper.scheduleWidgetUpdateJob(this@WidgetUpdateForegroundService)
+                // Stop the foreground service after update is done
+                stopSelf()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating widgets", e)
+                stopSelf()
+            }
+        }
+        
+        // If service is killed, restart it
+        return START_STICKY
+    }
+    
+    private suspend fun updateWidgets() {
+        val currentTime = WidgetUtil.getCurrentTimeFormatted()
+        Log.d(TAG, "Widget update started at $currentTime in foreground service")
+        
+        // Get location data from HomeWidgetPlugin
+        val widgetData = HomeWidgetPlugin.getData(applicationContext)
+        val locationDataString = widgetData.getString("locationData_from_flutter_APP_new_5", null)
+        
+        if (locationDataString == null) {
+            Log.w(TAG, "No location data found")
+            return
+        }
+        
+        val parts = locationDataString.split(",")
+        if (parts.size < 2) {
+            Log.e(TAG, "Invalid location data format: $locationDataString")
+            return
+        }
+        
+        val latitude = parts[0].toDoubleOrNull()
+        val longitude = parts[1].toDoubleOrNull()
+        
+        if (latitude == null || longitude == null) {
+            Log.e(TAG, "Failed to parse coordinates: $locationDataString")
+            return
+        }
+        
+        Log.d(TAG, "Fetching PM2.5 data for location: $latitude, $longitude")
+        
+        // Fetch PM2.5 data
+        val pm25Data = PM25Service.fetchPM25Data(latitude, longitude)
+        
+        Log.d(TAG, "PM2.5 data received: ${pm25Data.pmCurrent ?: "No data"} μg/m³")
+        
+        // Update medium widget
+        val mediumAppWidgetManager = AppWidgetManager.getInstance(applicationContext)
+        val mediumWidgetIds = mediumAppWidgetManager.getAppWidgetIds(
+            ComponentName(applicationContext, MyHomeMediumWidget::class.java)
+        )
+        
+        Log.d(TAG, "Updating ${mediumWidgetIds.size} medium widgets")
+        
+        for (widgetId in mediumWidgetIds) {
+            val views = WidgetUtil.buildWidgetViews(
+                applicationContext, 
+                R.layout.my_home_medium_widget,
+                pm25Data
+            )
+            mediumAppWidgetManager.updateAppWidget(widgetId, views)
+        }
+        
+        // Update small widget
+        val smallAppWidgetManager = AppWidgetManager.getInstance(applicationContext)
+        val smallWidgetIds = smallAppWidgetManager.getAppWidgetIds(
+            ComponentName(applicationContext, MyHomeSmallWidget::class.java)
+        )
+        
+        Log.d(TAG, "Updating ${smallWidgetIds.size} small widgets")
+        
+        for (widgetId in smallWidgetIds) {
+            val views = WidgetUtil.buildWidgetViews(
+                applicationContext, 
+                R.layout.my_home_small_widget,
+                pm25Data
+            )
+            smallAppWidgetManager.updateAppWidget(widgetId, views)
+        }
+        
+        val endTime = WidgetUtil.getCurrentTimeFormatted()
+        Log.d(TAG, "Widget update completed successfully at $endTime")
+    }
+    
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Widget Updates",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Used for updating air quality widgets"
+                setShowBadge(false)
+            }
+            
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+    
+    private fun createNotification(): Notification {
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Updating Air Quality Widget")
+            .setContentText("Fetching latest air quality data...")
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setOngoing(true)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+    }
+    
+    override fun onBind(intent: Intent?): IBinder? = null
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceJob.cancel()
+        Log.d(TAG, "Service destroyed")
+    }
+}
+```
+
+`android\app\src\main\java\com\example\test_wid_and\service\WidgetUpdateJobService.kt`
+```kotlin
+package com.example.test_wid_and.service
+
+import android.app.job.JobParameters
+import android.app.job.JobService
+import android.util.Log
+
+class WidgetUpdateJobService : JobService() {
+    companion object {
+        private const val TAG = "WidgetUpdateJobService"
+        const val JOB_ID = 1000
+    }
+
+    override fun onStartJob(params: JobParameters?): Boolean {
+        Log.d(TAG, "Periodic widget update job started")
+        
+        // Start the foreground service to ensure update happens reliably
+        WidgetUpdateForegroundService.startService(this)
+        
+        // Tell system our job is done - the foreground service handles the actual update
+        jobFinished(params, false)
+        
+        // Return false because we're not doing work in background with this JobService
+        // The actual work is delegated to the foreground service
+        return false
+    }
+
+    override fun onStopJob(params: JobParameters?): Boolean {
+        Log.d(TAG, "Widget update job stopped")
+        // Return true to reschedule the job if it's stopped unexpectedly
+        return true
+    }
+}
+```
+
+`android\app\src\main\java\com\example\test_wid_and\util\BatteryOptimizationHelper.kt`
+```kotlin
+package com.example.test_wid_and.util
+
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
+import android.util.Log
+
+object BatteryOptimizationHelper {
+    private const val TAG = "BatteryOptimHelper"
+    
+    // Check if app is ignoring battery optimizations
+    fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        } else {
+            true // On older versions, battery optimizations were less aggressive
+        }
+    }
+    
+    // Create intent to request battery optimization exemption
+    fun getBatteryOptimizationIntent(context: Context): Intent? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!isIgnoringBatteryOptimizations(context)) {
+                Intent().apply {
+                    action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                    data = Uri.parse("package:${context.packageName}")
+                }
+            } else {
+                Log.d(TAG, "App is already ignoring battery optimizations")
+                null
+            }
+        } else {
+            Log.d(TAG, "Battery optimization settings not needed for Android < M")
+            null
+        }
+    }
+}
+```
+
+`android\app\src\main\java\com\example\test_wid_and\util\JobSchedulerHelper.kt`
+```kotlin
+package com.example.test_wid_and.util
+
+import android.app.job.JobInfo
+import android.app.job.JobScheduler
+import android.content.ComponentName
+import android.content.Context
+import android.os.Build
+import android.util.Log
+import com.example.test_wid_and.service.WidgetUpdateForegroundService
+import com.example.test_wid_and.service.WidgetUpdateJobService
+import java.util.concurrent.TimeUnit
+
+object JobSchedulerHelper {
+    private const val TAG = "JobSchedulerHelper"
+    
+    // Schedule the job to update widgets every 15 minutes
+    fun scheduleWidgetUpdateJob(context: Context) {
+        val jobScheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
+        val componentName = ComponentName(context, WidgetUpdateJobService::class.java)
+        
+        // Cancel any existing jobs
+        jobScheduler.cancel(WidgetUpdateJobService.JOB_ID)
+        
+        // Use minimum periodic interval allowed by Android
+        // For Android 8+ (Oreo), minimum is 15 minutes
+        // For older Android versions, we can go as low as 1 minute
+        val intervalMillis = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            TimeUnit.MINUTES.toMillis(15) // 15 mins for Android 8+
+        } else {
+            TimeUnit.MINUTES.toMillis(15) // 15 mins for older versions
+        }
+        
+        val jobInfoBuilder = JobInfo.Builder(WidgetUpdateJobService.JOB_ID, componentName)
+            .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+            .setPersisted(true) // Job persists across reboots
+        
+        // Set periodic timing based on Android version
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            // For Android 7+ (Nougat), we can use minimum flex interval
+            jobInfoBuilder.setPeriodic(
+                intervalMillis,
+                JobInfo.getMinFlexMillis() // Minimum flex time
+            )
+        } else {
+            jobInfoBuilder.setPeriodic(intervalMillis)
+        }
+        
+        // Schedule the job
+        val result = jobScheduler.schedule(jobInfoBuilder.build())
+        
+        if (result == JobScheduler.RESULT_SUCCESS) {
+            Log.d(TAG, "Widget update job scheduled successfully")
+        } else {
+            Log.e(TAG, "Failed to schedule widget update job")
+        }
+    }
+    
+    // Run immediate widget update using the foreground service
+    fun runImmediateWidgetUpdate(context: Context) {
+        // Start the foreground service for immediate update
+        WidgetUpdateForegroundService.startService(context)
+    }
+}
+```
 
 `android\app\src\main\java\com\example\test_wid_and\util\WidgetUtil.kt`
 ```kotlin
@@ -806,8 +1180,11 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
-import com.example.test_wid_and.worker.WidgetUpdateWorker
+import com.example.test_wid_and.service.WidgetUpdateForegroundService
+import com.example.test_wid_and.util.JobSchedulerHelper
 
 /**
  * Implementation of App Widget functionality for medium widget.
@@ -824,24 +1201,36 @@ class MyHomeMediumWidget : AppWidgetProvider() {
     ) {
         Log.d(TAG, "onUpdate called with ${appWidgetIds.size} widgets")
         
-        // Schedule the WorkManager job for periodic updates
-        WidgetUpdateWorker.enqueuePeriodicWork(context)
+        // Schedule the JobScheduler for periodic updates
+        JobSchedulerHelper.scheduleWidgetUpdateJob(context)
+        
+        // Run an immediate update using foreground service
+        WidgetUpdateForegroundService.startService(context)
     }
     
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         Log.d(TAG, "Widget enabled, scheduling updates")
-        WidgetUpdateWorker.enqueuePeriodicWork(context)
+        JobSchedulerHelper.scheduleWidgetUpdateJob(context)
+        
+        // Delay immediate update by 1 second to ensure widget is fully initialized
+        Handler(Looper.getMainLooper()).postDelayed({
+            WidgetUpdateForegroundService.startService(context)
+        }, 1000)
     }
     
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         
-        // Handle manual refresh if needed
         if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
             Log.d(TAG, "Received widget update request")
-            WidgetUpdateWorker.enqueuePeriodicWork(context)
+            WidgetUpdateForegroundService.startService(context)
         }
+    }
+    
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        Log.d(TAG, "All widgets removed")
     }
 }
 ```
@@ -855,8 +1244,11 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
-import com.example.test_wid_and.worker.WidgetUpdateWorker
+import com.example.test_wid_and.service.WidgetUpdateForegroundService
+import com.example.test_wid_and.util.JobSchedulerHelper
 
 /**
  * Implementation of App Widget functionality for small widget.
@@ -873,24 +1265,36 @@ class MyHomeSmallWidget : AppWidgetProvider() {
     ) {
         Log.d(TAG, "onUpdate called with ${appWidgetIds.size} widgets")
         
-        // Schedule the WorkManager job for periodic updates
-        WidgetUpdateWorker.enqueuePeriodicWork(context)
+        // Schedule the JobScheduler for periodic updates
+        JobSchedulerHelper.scheduleWidgetUpdateJob(context)
+        
+        // Run an immediate update using foreground service
+        WidgetUpdateForegroundService.startService(context)
     }
     
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         Log.d(TAG, "Widget enabled, scheduling updates")
-        WidgetUpdateWorker.enqueuePeriodicWork(context)
+        JobSchedulerHelper.scheduleWidgetUpdateJob(context)
+        
+        // Delay immediate update by 1 second to ensure widget is fully initialized
+        Handler(Looper.getMainLooper()).postDelayed({
+            WidgetUpdateForegroundService.startService(context)
+        }, 1000)
     }
     
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         
-        // Handle manual refresh if needed
         if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
             Log.d(TAG, "Received widget update request")
-            WidgetUpdateWorker.enqueuePeriodicWork(context)
+            WidgetUpdateForegroundService.startService(context)
         }
+    }
+    
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        Log.d(TAG, "All widgets removed")
     }
 }
 ```
@@ -932,8 +1336,15 @@ class WidgetUpdateWorker(context: Context, params: WorkerParameters) :
                 5, TimeUnit.MINUTES    // Flex period
             )
                 .setConstraints(constraints)
+                // Add backoff strategy for reliability
+                .setBackoffCriteria(
+                    BackoffPolicy.LINEAR,
+                    WorkRequest.MIN_BACKOFF_MILLIS,
+                    TimeUnit.MILLISECONDS
+                )
                 .build()
                 
+            // Use UPDATE policy as in the original code
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.UPDATE,
@@ -1044,9 +1455,9 @@ import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
-import com.example.test_wid_and.worker.WidgetUpdateWorker
+import com.example.test_wid_and.service.WidgetUpdateForegroundService
+import com.example.test_wid_and.util.BatteryOptimizationHelper
+import com.example.test_wid_and.util.JobSchedulerHelper
 
 class WidgetApplication : Application(), Configuration.Provider, LifecycleObserver {
     companion object {
@@ -1057,22 +1468,24 @@ class WidgetApplication : Application(), Configuration.Provider, LifecycleObserv
         super.onCreate()
         Log.d(TAG, "Application created, setting up widget background updates")
         
-        // Initialize periodic widget updates when app starts
-        WidgetUpdateWorker.enqueuePeriodicWork(this)
+        // Check battery optimization status
+        val isBatteryOptimized = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this)
+        Log.d(TAG, "Battery optimization ignored: $isBatteryOptimized")
         
-        // Register as lifecycle observer to detect when app comes to foreground
+        // Initialize widget update mechanisms
+        JobSchedulerHelper.scheduleWidgetUpdateJob(this)
+        
+        // Register as lifecycle observer
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+        
+        // Force immediate first update
+        WidgetUpdateForegroundService.startService(this)
     }
     
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
     fun onAppForegrounded() {
         Log.d(TAG, "App came to foreground - triggering immediate widget update")
-        
-        // Trigger an immediate widget update when app is foregrounded
-        val oneTimeRequest = OneTimeWorkRequestBuilder<WidgetUpdateWorker>()
-            .build()
-        
-        WorkManager.getInstance(this).enqueue(oneTimeRequest)
+        WidgetUpdateForegroundService.startService(this)
     }
     
     override fun getWorkManagerConfiguration(): Configuration {
@@ -1083,6 +1496,99 @@ class WidgetApplication : Application(), Configuration.Provider, LifecycleObserv
 }
 ```
 
+`android\app\src\main\kotlin\com\example\test_wid_and\MainActivity.kt`
+```kotlin
+package com.example.test_wid_and
+
+import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
+import android.content.Context
+import io.flutter.plugins.GeneratedPluginRegistrant
+
+class MainActivity: FlutterActivity() {
+    private val CHANNEL = "com.example.test_wid_and/battery_optimization"
+    
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        GeneratedPluginRegistrant.registerWith(flutterEngine)
+        
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isIgnoringBatteryOptimizations" -> {
+                    result.success(isIgnoringBatteryOptimizations())
+                }
+                "requestIgnoreBatteryOptimizations" -> {
+                    requestIgnoreBatteryOptimizations()
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+    
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            powerManager.isIgnoringBatteryOptimizations(packageName)
+        } else {
+            true
+        }
+    }
+    
+    private fun requestIgnoreBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!isIgnoringBatteryOptimizations()) {
+                val intent = Intent().apply {
+                    action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            }
+        }
+    }
+}
+```
+
+`android\app\src\main\res\xml\my_home_medium_widget_info.xml`
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Medium widget info -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/app_widget_description"
+    android:initialKeyguardLayout="@layout/my_home_medium_widget"
+    android:initialLayout="@layout/my_home_medium_widget"
+    android:minWidth="40dp"
+    android:minHeight="40dp"
+    android:previewImage="@drawable/andwidjet1"
+    android:previewLayout="@layout/my_home_medium_widget"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="1"
+    android:targetCellHeight="1"
+    android:widgetCategory="home_screen" />
+```
+
+`android\app\src\main\res\xml\my_home_small_widget_info.xml`
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Small widget info -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="40dp"
+    android:minHeight="40dp"
+    android:previewImage="@drawable/andwidjet1"
+    android:initialLayout="@layout/my_home_small_widget"
+    android:description="@string/app_widget_description"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:previewLayout="@layout/my_home_small_widget"
+    android:targetCellHeight="1"
+    android:targetCellWidth="1"
+    android:initialKeyguardLayout="@layout/my_home_small_widget" />
+```
 
 `android\app\src\main\AndroidManifest.xml`
 ```xml
@@ -1114,10 +1620,38 @@ class WidgetApplication : Application(), Configuration.Provider, LifecycleObserv
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <application
         android:name=".WidgetApplication"
         android:icon="@mipmap/ic_launcher"
         android:label="test_wid_and" >
+        
+        <!-- Widget update foreground service -->
+        <service
+            android:name=".service.WidgetUpdateForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Widget update job service -->
+        <service
+            android:name=".service.WidgetUpdateJobService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
+
+        <!-- System event receiver -->
+        <receiver
+            android:name=".receiver.SystemEventReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
         
         <!-- Updated widget receivers with new package paths and exported=true -->
         <receiver
@@ -1196,33 +1730,6 @@ class WidgetApplication : Application(), Configuration.Provider, LifecycleObserv
 
 </manifest>
 ```
-
-
-`android\settings.gradle.kts`
-```kts
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    } 
-}
-
-val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
-rootProject.layout.buildDirectory.value(newBuildDir)
-
-subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
-}
-subprojects {
-    project.evaluationDependsOn(":app")
-}
-
-tasks.register<Delete>("clean") {
-    delete(rootProject.layout.buildDirectory)
-}
-```
-
 
 `lib\constants\app_constants.dart`
 ```dart
@@ -1523,6 +2030,8 @@ import 'package:home_widget/home_widget.dart';
 import 'screens/location_page.dart';
 import 'constants/app_constants.dart';
 import 'services/widget_service.dart';
+import 'dart:io';
+import 'package:flutter/services.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1530,11 +2039,32 @@ void main() {
   // Set up HomeWidget and trigger immediate widget update
   HomeWidget.setAppGroupId(AppConstants.appGroupId);
   
+  // Request battery optimization exception on Android
+  if (Platform.isAndroid) {
+    _requestBatteryOptimizationExemption();
+  }
+  
   // Initialize the app
   runApp(const MyApp());
   
   // Update widgets when app starts
   _updateWidgetsOnAppStart();
+}
+
+Future<void> _requestBatteryOptimizationExemption() async {
+  try {
+    const platform = MethodChannel('com.example.test_wid_and/battery_optimization');
+    final bool isIgnoring = await platform.invokeMethod('isIgnoringBatteryOptimizations');
+    
+    if (!isIgnoring) {
+      final bool requested = await platform.invokeMethod('requestIgnoreBatteryOptimizations');
+      print('Battery optimization exemption requested: $requested');
+    } else {
+      print('Already ignoring battery optimizations');
+    }
+  } catch (e) {
+    print('Error with battery optimization: $e');
+  }
 }
 
 Future<void> _updateWidgetsOnAppStart() async {

@@ -16,6 +16,7 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import es.antonborri.home_widget.HomeWidgetPlugin
 import kotlinx.coroutines.*
+import java.util.concurrent.atomic.AtomicBoolean
 
 class WidgetUpdateForegroundService : Service() {
     companion object {
@@ -23,14 +24,22 @@ class WidgetUpdateForegroundService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "widget_update_channel"
         
+        // Flag to prevent multiple simultaneous updates
+        private val isUpdating = AtomicBoolean(false)
+        
         fun startService(context: Context) {
-            val intent = Intent(context, WidgetUpdateForegroundService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
+            // Only start if not already updating
+            if (isUpdating.compareAndSet(false, true)) {
+                val intent = Intent(context, WidgetUpdateForegroundService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                Log.d(TAG, "Service start requested")
             } else {
-                context.startService(intent)
+                Log.d(TAG, "Update already in progress, skipping")
             }
-            Log.d(TAG, "Service start requested")
         }
     }
     
@@ -54,18 +63,19 @@ class WidgetUpdateForegroundService : Service() {
         serviceScope.launch {
             try {
                 updateWidgets()
-                // Schedule next update with JobScheduler
-                com.example.test_wid_and.util.JobSchedulerHelper.scheduleWidgetUpdateJob(this@WidgetUpdateForegroundService)
-                // Stop the foreground service after update is done
+                // Stop the service after update
                 stopSelf()
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating widgets", e)
                 stopSelf()
+            } finally {
+                // Reset the updating flag when done
+                isUpdating.set(false)
             }
         }
         
-        // If service is killed, restart it
-        return START_STICKY
+        // If service is killed, don't restart automatically (JobScheduler will handle scheduling)
+        return START_NOT_STICKY
     }
     
     private suspend fun updateWidgets() {
@@ -102,42 +112,33 @@ class WidgetUpdateForegroundService : Service() {
         
         Log.d(TAG, "PM2.5 data received: ${pm25Data.pmCurrent ?: "No data"} μg/m³")
         
-        // Update medium widget
-        val mediumAppWidgetManager = AppWidgetManager.getInstance(applicationContext)
-        val mediumWidgetIds = mediumAppWidgetManager.getAppWidgetIds(
-            ComponentName(applicationContext, MyHomeMediumWidget::class.java)
-        )
-        
-        Log.d(TAG, "Updating ${mediumWidgetIds.size} medium widgets")
-        
-        for (widgetId in mediumWidgetIds) {
-            val views = WidgetUtil.buildWidgetViews(
-                applicationContext, 
-                R.layout.my_home_medium_widget,
-                pm25Data
-            )
-            mediumAppWidgetManager.updateAppWidget(widgetId, views)
-        }
-        
-        // Update small widget
-        val smallAppWidgetManager = AppWidgetManager.getInstance(applicationContext)
-        val smallWidgetIds = smallAppWidgetManager.getAppWidgetIds(
-            ComponentName(applicationContext, MyHomeSmallWidget::class.java)
-        )
-        
-        Log.d(TAG, "Updating ${smallWidgetIds.size} small widgets")
-        
-        for (widgetId in smallWidgetIds) {
-            val views = WidgetUtil.buildWidgetViews(
-                applicationContext, 
-                R.layout.my_home_small_widget,
-                pm25Data
-            )
-            smallAppWidgetManager.updateAppWidget(widgetId, views)
-        }
+        // Update both widget types efficiently
+        updateWidgetsByType(R.layout.my_home_medium_widget, MyHomeMediumWidget::class.java, pm25Data)
+        updateWidgetsByType(R.layout.my_home_small_widget, MyHomeSmallWidget::class.java, pm25Data)
         
         val endTime = WidgetUtil.getCurrentTimeFormatted()
         Log.d(TAG, "Widget update completed successfully at $endTime")
+    }
+    
+    private fun updateWidgetsByType(layoutId: Int, widgetClass: Class<*>, pm25Data: WidgetUtil.PM25Data) {
+        val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
+        val widgetIds = appWidgetManager.getAppWidgetIds(
+            ComponentName(applicationContext, widgetClass)
+        )
+        
+        Log.d(TAG, "Updating ${widgetIds.size} widgets of type ${widgetClass.simpleName}")
+        
+        if (widgetIds.isNotEmpty()) {
+            val views = WidgetUtil.buildWidgetViews(
+                applicationContext, 
+                layoutId,
+                pm25Data
+            )
+            
+            for (widgetId in widgetIds) {
+                appWidgetManager.updateAppWidget(widgetId, views)
+            }
+        }
     }
     
     private fun createNotificationChannel() {
