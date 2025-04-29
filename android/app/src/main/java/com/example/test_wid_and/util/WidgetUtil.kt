@@ -67,10 +67,13 @@ object WidgetUtil {
         views.setTextColor(R.id.date_text, colorParsed)
         
         // Clean and set date text with debug timestamp
+        // val cleanedDateThai = dateThai?.replace(Regex("(จันทร์|อังคาร|พุธ|พฤหัสบดี|ศุกร์|เสาร์|อาทิตย์)"), "")
+        // val dateWithDebugTime = "${cleanedDateThai ?: "No date"} [${currentTime}]"
+        // views.setTextViewText(R.id.date_text, dateWithDebugTime)
+
         val cleanedDateThai = dateThai?.replace(Regex("(จันทร์|อังคาร|พุธ|พฤหัสบดี|ศุกร์|เสาร์|อาทิตย์)"), "")
-        val dateWithDebugTime = "${cleanedDateThai ?: "No date"} [${currentTime}]"
-        views.setTextViewText(R.id.date_text, dateWithDebugTime)
-        
+        views.setTextViewText(R.id.date_text, cleanedDateThai ?: "No date")
+
         // Add hourly readings
         views.removeAllViews(R.id.hourly_readings_container)
         if (!hourlyData.isNullOrEmpty()) {
