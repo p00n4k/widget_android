@@ -11,7 +11,7 @@ import com.example.test_wid_and.MainActivity
 import com.example.test_wid_and.R
 import com.example.test_wid_and.util.WidgetUtil
 import com.example.test_wid_and.util.JobSchedulerHelper
-import com.example.test_wid_and.util.LanguageHelper  // Add this import
+import com.example.test_wid_and.util.LanguageHelper
 import com.example.test_wid_and.widget.MyHomeMediumWidget
 import com.example.test_wid_and.widget.MyHomeSmallWidget
 import android.appwidget.AppWidgetManager
@@ -29,24 +29,35 @@ class WidgetUpdateForegroundService : Service() {
         // Flag to prevent multiple simultaneous updates
         private val isUpdating = AtomicBoolean(false)
         
+        // Last update timestamp to throttle updates
+        private var lastUpdateTime = 0L
+        private const val MIN_UPDATE_INTERVAL = 2000 // 2 seconds
+        
         fun startService(context: Context) {
-            // Only start if not already updating
-            if (isUpdating.compareAndSet(false, true)) {
-                val intent = Intent(context, WidgetUpdateForegroundService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
+            // Only start if not already updating and not too soon after last update
+            val now = System.currentTimeMillis()
+            if (!isUpdating.get() && now - lastUpdateTime > MIN_UPDATE_INTERVAL) {
+                if (isUpdating.compareAndSet(false, true)) {
+                    lastUpdateTime = now
+                    val intent = Intent(context, WidgetUpdateForegroundService::class.java)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(intent)
+                    } else {
+                        context.startService(intent)
+                    }
+                    Log.d(TAG, "Service start requested")
                 }
-                Log.d(TAG, "Service start requested")
             } else {
-                Log.d(TAG, "Update already in progress, skipping")
+                Log.d(TAG, "Update already in progress or too soon after last update, skipping")
             }
         }
     }
     
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
+    
+    // Cache notification objects
+    private var cachedNotification: Notification? = null
     
     override fun onCreate() {
         super.onCreate()
@@ -58,7 +69,7 @@ class WidgetUpdateForegroundService : Service() {
         Log.d(TAG, "Service started, updating widgets")
         
         // Show a foreground notification
-        val notification = createNotification()
+        val notification = cachedNotification ?: createNotification().also { cachedNotification = it }
         startForeground(NOTIFICATION_ID, notification)
         
         // Update widgets in background
@@ -110,19 +121,14 @@ class WidgetUpdateForegroundService : Service() {
         
         // Get language code from parts or use device preference
         val languageCode = if (parts.size >= 3) {
-            val langValue = when (parts[2]) {
+            when (parts[2]) {
                 "Eng" -> "en"
                 "ไทย" -> "th"
                 else -> "en" // Default
             }
-            Log.d(TAG, "Using language from Flutter data: ${parts[2]} -> $langValue")
-            langValue
         } else {
             // Get system preference
-            val prefs = applicationContext.getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
-            val savedLang = prefs.getString("language_code", "en") ?: "en"
-            Log.d(TAG, "No language in data, using saved preference: $savedLang")
-            savedLang
+            LanguageHelper.getCurrentLanguageCode(applicationContext)
         }
         
         Log.d(TAG, "Language code for widget update: $languageCode")
@@ -156,6 +162,7 @@ class WidgetUpdateForegroundService : Service() {
         Log.d(TAG, "Updating ${widgetIds.size} widgets of type ${widgetClass.simpleName}")
         
         if (widgetIds.isNotEmpty()) {
+            // Build views once and reuse for all widgets of same type
             val views = WidgetUtil.buildWidgetViews(
                 applicationContext, 
                 layoutId,

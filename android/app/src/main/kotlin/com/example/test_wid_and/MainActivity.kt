@@ -15,16 +15,17 @@ import android.content.res.Configuration
 import android.content.SharedPreferences
 import android.util.Log
 import android.content.ComponentName
+import com.example.test_wid_and.service.WidgetUpdateForegroundService
 import com.example.test_wid_and.widget.MyHomeMediumWidget
 import com.example.test_wid_and.widget.MyHomeSmallWidget
-import com.example.test_wid_and.widget.BaseWidgetProvider
-import com.example.test_wid_and.service.WidgetUpdateForegroundService
+import android.appwidget.AppWidgetManager
 
 class MainActivity: FlutterActivity() {
     private val BATTERY_CHANNEL = "com.example.test_wid_and/battery_optimization"
     private val LANGUAGE_CHANNEL = "com.check_phoon_widget/language"
     private val TAG = "MainActivity"
     private var isInitializing = true // Flag to prevent recursive recreate calls
+    private var currentLanguage: String? = null // Track current language to avoid unnecessary updates
     
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         GeneratedPluginRegistrant.registerWith(flutterEngine)
@@ -55,8 +56,15 @@ class MainActivity: FlutterActivity() {
                 "changeLanguage" -> {
                     val language = call.argument<String>("language") ?: "Eng"
                     val locale = mapFlutterLanguageToLocale(language)
-                    updateLocale(locale, recreateActivity = true)
-                    result.success(true)
+                    
+                    // Check if language is actually different to avoid unnecessary updates
+                    if (locale.language != currentLanguage) {
+                        updateLocale(locale, recreateActivity = true)
+                        result.success(true)
+                    } else {
+                        // Language hasn't changed, no need to update
+                        result.success(false)
+                    }
                 }
                 "getCurrentLanguage" -> {
                     val prefs = getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
@@ -76,7 +84,13 @@ class MainActivity: FlutterActivity() {
     }
     
     private fun updateLocale(locale: Locale, recreateActivity: Boolean = false) {
+        // Skip update if language hasn't changed
+        if (locale.language == currentLanguage) {
+            return
+        }
+        
         Locale.setDefault(locale)
+        currentLanguage = locale.language
         
         val config = Configuration(resources.configuration)
         config.setLocale(locale)
@@ -92,16 +106,11 @@ class MainActivity: FlutterActivity() {
         // Log language change
         Log.d(TAG, "Language changed to: ${locale.language}")
         
-        // Broadcast language change to update widgets
-        val intent = Intent(BaseWidgetProvider.ACTION_LANGUAGE_CHANGED)
-        intent.component = ComponentName(this, MyHomeMediumWidget::class.java)
-        sendBroadcast(intent)
+        // Use a single Intent to update all widgets
+        val updateIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+        sendBroadcast(updateIntent)
         
-        val intent2 = Intent(BaseWidgetProvider.ACTION_LANGUAGE_CHANGED)
-        intent2.component = ComponentName(this, MyHomeSmallWidget::class.java)
-        sendBroadcast(intent2)
-        
-        // Force update widgets
+        // Schedule one widget update job instead of starting service immediately
         WidgetUpdateForegroundService.startService(this)
         
         // Only recreate if explicitly requested (not during initialization)
@@ -112,8 +121,10 @@ class MainActivity: FlutterActivity() {
     
     private fun initializeLanguage() {
         val prefs = getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
-        val savedLanguage = prefs.getString("language_code", "en")
-        val locale = Locale(savedLanguage ?: "en")
+        val savedLanguage = prefs.getString("language_code", "en") ?: "en"
+        currentLanguage = savedLanguage
+        
+        val locale = Locale(savedLanguage)
         
         // Don't recreate during initialization
         updateLocale(locale, recreateActivity = false)

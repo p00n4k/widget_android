@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Color
 import android.widget.RemoteViews
 import com.example.test_wid_and.R
-import com.example.test_wid_and.util.LanguageHelper
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -17,8 +16,16 @@ object WidgetUtil {
     )
     
     fun buildWidgetViews(context: Context, layoutId: Int, pm25Data: PM25Data): RemoteViews {
-        // Get language-configured context
-        val configuredContext = LanguageHelper.getConfiguredContext(context)
+        // Get all string resources at once to avoid multiple context recreations
+        val resources = LanguageHelper.getLocalizedResources(context)
+        val noDataText = resources.getString(R.string.no_data)
+        val veryGoodText = resources.getString(R.string.air_very_good)
+        val goodText = resources.getString(R.string.air_good)
+        val moderateText = resources.getString(R.string.air_moderate)
+        val unhealthyText = resources.getString(R.string.air_unhealthy)
+        val veryUnhealthyText = resources.getString(R.string.air_very_unhealthy)
+        val pm25HourlyText = resources.getString(R.string.pm25_hourly)
+        val pm25UnitText = resources.getString(R.string.pm25_unit)
         
         val views = RemoteViews(context.packageName, layoutId)
         
@@ -28,36 +35,29 @@ object WidgetUtil {
         val dateText = pm25Data.dateThai
         
         // Set PM2.5 value
-        views.setTextViewText(R.id.text_pm25, pmCurrent?.let { String.format("%.0f", it) } 
-            ?: LanguageHelper.getStringResource(context, R.string.no_data))
+        views.setTextViewText(R.id.text_pm25, pmCurrent?.let { String.format("%.0f", it) } ?: noDataText)
         
         // Determine background, images, and text color based on PM2.5 value
         val (backgroundResId, humanImage, textColor, message) = when {
             pmCurrent == null -> {
-                Quadruple(R.drawable.andwidjet1, R.drawable.verygood, "#FFFFFF", 
-                    LanguageHelper.getStringResource(context, R.string.no_data))
+                Quadruple(R.drawable.andwidjet1, R.drawable.verygood, "#FFFFFF", noDataText)
             }
             pmCurrent <= 15 -> {
-                Quadruple(R.drawable.andwidjet1, R.drawable.verygood, "#FFFFFF", 
-                    LanguageHelper.getStringResource(context, R.string.air_very_good))
+                Quadruple(R.drawable.andwidjet1, R.drawable.verygood, "#FFFFFF", veryGoodText)
             }
             pmCurrent <= 25 -> {
                 views.setImageViewResource(R.id.nearme_id, R.drawable.near_me_dark)
-                Quadruple(R.drawable.andwidjet2, R.drawable.good, "#303C46", 
-                    LanguageHelper.getStringResource(context, R.string.air_good))
+                Quadruple(R.drawable.andwidjet2, R.drawable.good, "#303C46", goodText)
             }
             pmCurrent <= 37.5 -> {
                 views.setImageViewResource(R.id.nearme_id, R.drawable.near_me_dark)
-                Quadruple(R.drawable.andwidjet3, R.drawable.medium, "#303C46", 
-                    LanguageHelper.getStringResource(context, R.string.air_moderate))
+                Quadruple(R.drawable.andwidjet3, R.drawable.medium, "#303C46", moderateText)
             }
             pmCurrent <= 75 -> {
-                Quadruple(R.drawable.andwidjet4, R.drawable.bad, "#FFFFFF", 
-                    LanguageHelper.getStringResource(context, R.string.air_unhealthy))
+                Quadruple(R.drawable.andwidjet4, R.drawable.bad, "#FFFFFF", unhealthyText)
             }
             else -> {
-                Quadruple(R.drawable.andwidjet5, R.drawable.verybad, "#FFFFFF", 
-                    LanguageHelper.getStringResource(context, R.string.air_very_unhealthy))
+                Quadruple(R.drawable.andwidjet5, R.drawable.verybad, "#FFFFFF", veryUnhealthyText)
             }
         }
         
@@ -75,18 +75,13 @@ object WidgetUtil {
         views.setTextColor(R.id.date_text, colorParsed)
         
         // Set PM2.5 header text
-        views.setTextViewText(R.id.text_pm25_header, LanguageHelper.getStringResource(context, R.string.pm25_hourly))
+        views.setTextViewText(R.id.text_pm25_header, pm25HourlyText)
         
         // Set PM2.5 unit text
-        views.setTextViewText(R.id.text_pm25_unit, LanguageHelper.getStringResource(context, R.string.pm25_unit))
-        
-        // Add language debug info if needed
-        val currentLang = LanguageHelper.getCurrentLanguageCode(context)
-        val langDisplay = LanguageHelper.getStringResource(context, R.string.current_language)
-        val langWithCode = String.format(langDisplay, if (currentLang == "en") "Eng" else "ไทย")
+        views.setTextViewText(R.id.text_pm25_unit, pm25UnitText)
         
         // Clean and set date text
-        views.setTextViewText(R.id.date_text, dateText ?: LanguageHelper.getStringResource(context, R.string.no_data))
+        views.setTextViewText(R.id.date_text, dateText ?: noDataText)
         
         // Add hourly readings
         views.removeAllViews(R.id.hourly_readings_container)
@@ -102,8 +97,8 @@ object WidgetUtil {
             }
         } else {
             val noDataView = RemoteViews(context.packageName, R.layout.hourly_reading).apply {
-                setTextViewText(R.id.hour_text, LanguageHelper.getStringResource(context, R.string.no_data))
-                setTextViewText(R.id.pm_text, LanguageHelper.getStringResource(context, R.string.no_data))
+                setTextViewText(R.id.hour_text, noDataText)
+                setTextViewText(R.id.pm_text, noDataText)
             }
             views.addView(R.id.hourly_readings_container, noDataView)
         }
