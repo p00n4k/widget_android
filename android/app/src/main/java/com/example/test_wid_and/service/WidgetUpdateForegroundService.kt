@@ -11,6 +11,7 @@ import com.example.test_wid_and.MainActivity
 import com.example.test_wid_and.R
 import com.example.test_wid_and.util.WidgetUtil
 import com.example.test_wid_and.util.JobSchedulerHelper
+import com.example.test_wid_and.util.LanguageHelper  // Add this import
 import com.example.test_wid_and.widget.MyHomeMediumWidget
 import com.example.test_wid_and.widget.MyHomeSmallWidget
 import android.appwidget.AppWidgetManager
@@ -89,7 +90,7 @@ class WidgetUpdateForegroundService : Service() {
             return
         }
         
-        // Get location data from HomeWidgetPlugin
+        // Get data from HomeWidgetPlugin
         val widgetData = HomeWidgetPlugin.getData(applicationContext)
         val locationDataString = widgetData.getString("locationData_from_flutter_APP_new_5", null)
         
@@ -107,17 +108,36 @@ class WidgetUpdateForegroundService : Service() {
         val latitude = parts[0].toDoubleOrNull()
         val longitude = parts[1].toDoubleOrNull()
         
+        // Get language code from parts or use device preference
+        val languageCode = if (parts.size >= 3) {
+            val langValue = when (parts[2]) {
+                "Eng" -> "en"
+                "ไทย" -> "th"
+                else -> "en" // Default
+            }
+            Log.d(TAG, "Using language from Flutter data: ${parts[2]} -> $langValue")
+            langValue
+        } else {
+            // Get system preference
+            val prefs = applicationContext.getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
+            val savedLang = prefs.getString("language_code", "en") ?: "en"
+            Log.d(TAG, "No language in data, using saved preference: $savedLang")
+            savedLang
+        }
+        
+        Log.d(TAG, "Language code for widget update: $languageCode")
+        
         if (latitude == null || longitude == null) {
             Log.e(TAG, "Failed to parse coordinates: $locationDataString")
             return
         }
         
-        Log.d(TAG, "Fetching PM2.5 data for location: $latitude, $longitude")
+        Log.d(TAG, "Fetching PM2.5 data for location: $latitude, $longitude, language: $languageCode")
         
-        // Fetch PM2.5 data
-        val pm25Data = PM25Service.fetchPM25Data(latitude, longitude)
+        // Fetch PM2.5 data with language code
+        val pm25Data = PM25Service.fetchPM25Data(latitude, longitude, languageCode)
         
-        Log.d(TAG, "PM2.5 data received: ${pm25Data.pmCurrent ?: "No data"} μg/m³")
+        Log.d(TAG, "PM2.5 data received: ${pm25Data.pmCurrent ?: getString(R.string.no_data)} μg/m³")
         
         // Update both widget types efficiently
         updateWidgetsByType(R.layout.my_home_medium_widget, MyHomeMediumWidget::class.java, pm25Data)
@@ -150,12 +170,16 @@ class WidgetUpdateForegroundService : Service() {
     
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Get localized strings for channel
+            val title = LanguageHelper.getStringResource(this, R.string.updating_widget_title)
+            val description = LanguageHelper.getStringResource(this, R.string.updating_widget_text)
+            
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Widget Updates",
+                title,
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Used for updating air quality widgets"
+                this.description = description
                 setShowBadge(false)
             }
             
@@ -173,8 +197,8 @@ class WidgetUpdateForegroundService : Service() {
         )
         
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Updating Air Quality Widget")
-            .setContentText("Fetching latest air quality data...")
+            .setContentTitle(LanguageHelper.getStringResource(this, R.string.updating_widget_title))
+            .setContentText(LanguageHelper.getStringResource(this, R.string.updating_widget_text))
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setContentIntent(pendingIntent)

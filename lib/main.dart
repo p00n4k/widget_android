@@ -7,6 +7,9 @@ import 'services/widget_service.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
 
+// Global variable for language preference
+String lang = "Eng"; // Default to English
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -46,17 +49,29 @@ Future<void> _updateWidgetsOnAppStart() async {
   final widgetService = WidgetService();
   await widgetService.initialize();
   
-  // Force widgets to update on both platforms
-  await HomeWidget.updateWidget(
-    iOSName: AppConstants.iOSWidgetName,
-    androidName: AppConstants.androidMediumWidgetName
-  );
+  // Get the current language setting
+  lang = widgetService.currentLanguage;
+  print('Current language from widget service: $lang');
   
-  await HomeWidget.updateWidget(
-    androidName: AppConstants.androidSmallWidgetName
-  );
+  // iOS widget
+  if (Platform.isIOS) {
+    await HomeWidget.updateWidget(
+      iOSName: AppConstants.iOSWidgetName,
+    );
+  }
   
-  print('Widgets updated on app start');
+  // Android widgets - update each one separately
+  if (Platform.isAndroid) {
+    await HomeWidget.updateWidget(
+      androidName: AppConstants.androidMediumWidgetName
+    );
+    
+    await HomeWidget.updateWidget(
+      androidName: AppConstants.androidSmallWidgetName
+    );
+  }
+  
+  print('Widgets updated on app start with language: $lang');
 }
 
 class MyApp extends StatelessWidget {

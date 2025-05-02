@@ -1,4 +1,3 @@
-// android/app/src/main/java/com/example/test_wid_and/service/PM25Service.kt
 package com.example.test_wid_and.service
 
 import com.example.test_wid_and.util.WidgetUtil.PM25Data
@@ -7,10 +6,16 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
+import android.util.Log
 
 class PM25Service {
     companion object {
-        suspend fun fetchPM25Data(latitude: Double, longitude: Double): PM25Data {
+        private const val TAG = "PM25Service"
+        
+        suspend fun fetchPM25Data(latitude: Double, longitude: Double, languageCode: String? = null): PM25Data {
+            val language = languageCode ?: "en"
+            Log.d(TAG, "Fetching PM2.5 data with language: $language")
+            
             return try {
                 val url = URL("https://pm25.gistda.or.th/rest/pred/getPm25byLocation?lat=$latitude&lng=$longitude")
                 val connection = url.openConnection() as HttpURLConnection
@@ -21,7 +26,7 @@ class PM25Service {
                 
                 if (connection.responseCode == 200) {
                     val response = connection.inputStream.bufferedReader().use { it.readText() }
-                    parseResponse(response)
+                    parseResponse(response, language)
                 } else {
                     PM25Data(null, null, null)
                 }
@@ -31,18 +36,29 @@ class PM25Service {
             }
         }
         
-        private fun parseResponse(response: String): PM25Data {
+        private fun parseResponse(response: String, language: String): PM25Data {
             val jsonObject = JSONObject(response)
             val dataObject = jsonObject.getJSONObject("data")
             
             // Extract current PM2.5
             val pmCurrent = dataObject.getJSONArray("pm25").getDouble(0)
             
-            // Extract Thai date information
-            val datetimeThai = dataObject.getJSONObject("datetimeThai")
-            val dateThai = datetimeThai.getString("dateThai")
-            val timeThai = datetimeThai.getString("timeThai")
-            val dateTimeString = "$dateThai $timeThai"
+            // Extract date information based on language - FIX THE INVERTED LOGIC
+            val dateTimeString = if (language == "th") {
+                // Use Thai date information when language is Thai
+                val datetimeThai = dataObject.getJSONObject("datetimeThai")
+                val dateThai = datetimeThai.getString("dateThai")
+                val timeThai = datetimeThai.getString("timeThai")
+                "$dateThai $timeThai"
+            } else {
+                // Use English date information when language is English
+                val datetimeEng = dataObject.getJSONObject("datetimeEng")
+                val dateEng = datetimeEng.getString("dateEng")
+                val timeEng = datetimeEng.getString("timeEng")
+                "$dateEng $timeEng"
+            }
+            
+            Log.d(TAG, "Selected date format for language '$language': $dateTimeString")
             
             // Extract hourly PM2.5 values and times
             val hourlyData = dataObject.getJSONArray("graphPredictByHrs")

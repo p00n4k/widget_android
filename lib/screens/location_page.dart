@@ -11,6 +11,7 @@ class _LocationPageState extends State<LocationPage> with WidgetsBindingObserver
   final LocationService _locationService = LocationService();
   final WidgetService _widgetService = WidgetService();
   String locationMessage = "Press the button to get location";
+  String lang = "Eng"; // Default language
   
   // Track if we've updated widgets in this session
   bool _hasUpdatedWidgetsThisSession = false;
@@ -46,6 +47,9 @@ class _LocationPageState extends State<LocationPage> with WidgetsBindingObserver
 
   Future<void> _initServices() async {
     await _widgetService.initialize();
+    setState(() {
+      lang = _widgetService.currentLanguage;
+    });
     _getCurrentLocation();
     _hasUpdatedWidgetsThisSession = true; // Mark as updated for this session
   }
@@ -61,10 +65,11 @@ class _LocationPageState extends State<LocationPage> with WidgetsBindingObserver
           locationMessage = "Latitude: ${locationResult.position!.latitude}, "
               "Longitude: ${locationResult.position!.longitude}";
           
-          // Update widgets with new location
+          // Update widgets with new location and language
           _widgetService.updateWidgetsWithLocation(
             locationResult.position!.latitude, 
-            locationResult.position!.longitude
+            locationResult.position!.longitude,
+            language: lang
           );
         }
       });
@@ -72,6 +77,17 @@ class _LocationPageState extends State<LocationPage> with WidgetsBindingObserver
       setState(() {
         locationMessage = "Error getting location: $e";
       });
+    }
+  }
+
+  Future<void> _changeLanguage(String newLang) async {
+    if (newLang != lang) {
+      await _widgetService.changeLanguage(newLang);
+      setState(() {
+        lang = newLang;
+      });
+      // Force widget update with new language
+      _getCurrentLocation();
     }
   }
 
@@ -84,6 +100,29 @@ class _LocationPageState extends State<LocationPage> with WidgetsBindingObserver
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(locationMessage, textAlign: TextAlign.center),
+            SizedBox(height: 20),
+            // Language selection
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text("Language: "),
+                DropdownButton<String>(
+                  value: lang,
+                  items: [
+                    DropdownMenuItem(value: "Eng", child: Text("English")),
+                    DropdownMenuItem(value: "ไทย", child: Text("Thai")),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      _changeLanguage(value);
+                    }
+                  },
+                ),
+              ],
+            ),
+            // Display current language for debugging
+            Text("Current Language: $lang", 
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
             SizedBox(height: 20),
             ElevatedButton(
               onPressed: _getCurrentLocation,

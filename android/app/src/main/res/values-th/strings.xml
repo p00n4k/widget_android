@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="appwidget_text">ตัวอย่าง</string>
+    <string name="add_widget">เพิ่มวิดเจ็ต</string>
+    <string name="app_widget_description">คำอธิบายของวิดเจ็ต</string>
+    
+    <!-- Widget Strings -->
+    <string name="updating_widget_title">กำลังอัปเดตวิดเจ็ตคุณภาพอากาศ</string>
+    <string name="updating_widget_text">กำลังดึงข้อมูลคุณภาพอากาศล่าสุด...</string>
+    <string name="pm25_hourly">PM2.5 รายชั่วโมง</string>
+    <string name="pm25_unit">µg/m³</string>
+    <string name="no_data">ไม่มีข้อมูล</string>
+    
+    <!-- Air Quality Levels -->
+    <string name="air_very_good">อากาศดีมาก</string>
+    <string name="air_good">อากาศดี</string>
+    <string name="air_moderate">ปานกลาง</string>
+    <string name="air_unhealthy">เริ่มมีผลต่อสุขภาพ</string>
+    <string name="air_very_unhealthy">มีผลต่อสุขภาพ</string>
+    
+    <!-- Debug -->
+    <string name="current_language">ภาษาปัจจุบัน: %1$s</string>
+</resources>

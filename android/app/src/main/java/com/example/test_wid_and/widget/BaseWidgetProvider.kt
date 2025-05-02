@@ -15,6 +15,10 @@ import com.example.test_wid_and.util.JobSchedulerHelper
  */
 abstract class BaseWidgetProvider : AppWidgetProvider() {
     abstract val TAG: String
+    
+    companion object {
+        const val ACTION_LANGUAGE_CHANGED = "com.example.test_wid_and.ACTION_LANGUAGE_CHANGED"
+    }
 
     override fun onUpdate(
         context: Context,
@@ -55,8 +59,9 @@ abstract class BaseWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         
-        if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
-            Log.d(TAG, "Received widget update request")
+        if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE || 
+            intent.action == ACTION_LANGUAGE_CHANGED) {
+            Log.d(TAG, "Received widget update request: ${intent.action}")
             WidgetUpdateForegroundService.startService(context)
         }
     }

@@ -1,4 +1,3 @@
-// lib/constants/app_constants.dart
 class AppConstants {
   // App Group ID for widget communication
   static const String appGroupId = "group.homescreenaapp";
@@ -10,4 +9,7 @@ class AppConstants {
   
   // Data keys
   static const String dataKey = "locationData_from_flutter_APP_new_5";
+  
+  // Language channel
+  static const String languageChannel = "com.check_phoon_widget/language";
 }
