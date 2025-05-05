@@ -14,7 +14,7 @@
     <application
         android:name=".WidgetApplication"
         android:icon="@mipmap/ic_launcher"
-        android:label="test_wid_and" >
+        android:label="android_widget" >
         
         <!-- Widget update foreground service -->
         <service

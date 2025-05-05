@@ -1,4 +1,4 @@
-package com.example.test_wid_and
+package com.check_phoon.android_widget
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -12,7 +12,7 @@ import android.content.Context
 import io.flutter.plugins.GeneratedPluginRegistrant
 
 class MainActivity: FlutterActivity() {
-    private val CHANNEL = "com.example.test_wid_and/battery_optimization"
+    private val CHANNEL = "com.check_phoon.android_widget/battery_optimization"
     
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         GeneratedPluginRegistrant.registerWith(flutterEngine)

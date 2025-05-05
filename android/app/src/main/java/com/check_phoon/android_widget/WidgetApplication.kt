@@ -1,4 +1,4 @@
-package com.example.test_wid_and
+package com.check_phoon.android_widget
 
 import android.app.Application
 import android.content.Context
@@ -7,9 +7,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
 import androidx.lifecycle.ProcessLifecycleOwner
-import com.example.test_wid_and.service.WidgetUpdateForegroundService
-import com.example.test_wid_and.util.BatteryOptimizationHelper
-import com.example.test_wid_and.util.JobSchedulerHelper
+import com.check_phoon.android_widget.service.WidgetUpdateForegroundService
+import com.check_phoon.android_widget.util.BatteryOptimizationHelper
+import com.check_phoon.android_widget.util.JobSchedulerHelper
 
 class WidgetApplication : Application(), LifecycleObserver {
     companion object {

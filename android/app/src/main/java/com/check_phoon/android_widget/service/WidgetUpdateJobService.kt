@@ -1,4 +1,4 @@
-package com.example.test_wid_and.service
+package com.check_phoon.android_widget.service
 
 import android.app.job.JobParameters
 import android.app.job.JobService

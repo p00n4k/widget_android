@@ -1,10 +1,10 @@
-package com.example.test_wid_and.receiver
+package com.check_phoon.android_widget.receiver
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.example.test_wid_and.util.JobSchedulerHelper
+import com.check_phoon.android_widget.util.JobSchedulerHelper
 
 /**
  * BroadcastReceiver to handle system events that should trigger widget updates.

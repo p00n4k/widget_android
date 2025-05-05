@@ -1,4 +1,4 @@
-package com.example.test_wid_and.util
+package com.check_phoon.android_widget.util
 
 import android.app.job.JobInfo
 import android.app.job.JobScheduler
@@ -7,10 +7,10 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import android.appwidget.AppWidgetManager
-import com.example.test_wid_and.service.WidgetUpdateForegroundService
-import com.example.test_wid_and.service.WidgetUpdateJobService
-import com.example.test_wid_and.widget.MyHomeMediumWidget
-import com.example.test_wid_and.widget.MyHomeSmallWidget
+import com.check_phoon.android_widget.service.WidgetUpdateForegroundService
+import com.check_phoon.android_widget.service.WidgetUpdateJobService
+import com.check_phoon.android_widget.widget.MyHomeMediumWidget
+import com.check_phoon.android_widget.widget.MyHomeSmallWidget
 import java.util.concurrent.TimeUnit
 
 object JobSchedulerHelper {

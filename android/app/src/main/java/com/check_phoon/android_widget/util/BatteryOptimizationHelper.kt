@@ -1,4 +1,4 @@
-package com.example.test_wid_and.util
+package com.check_phoon.android_widget.util
 
 import android.content.Context
 import android.content.Intent

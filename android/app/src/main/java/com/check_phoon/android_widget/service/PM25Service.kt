@@ -1,7 +1,7 @@
-// android/app/src/main/java/com/example/test_wid_and/service/PM25Service.kt
-package com.example.test_wid_and.service
+// android/app/src/main/java/com/example/android_widget/service/PM25Service.kt
+package com.check_phoon.android_widget.service
 
-import com.example.test_wid_and.util.WidgetUtil.PM25Data
+import com.check_phoon.android_widget.util.WidgetUtil.PM25Data
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL

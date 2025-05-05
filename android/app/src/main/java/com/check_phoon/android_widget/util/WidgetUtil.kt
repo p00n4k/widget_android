@@ -1,9 +1,9 @@
-package com.example.test_wid_and.util
+package com.check_phoon.android_widget.util
 
 import android.content.Context
 import android.graphics.Color
 import android.widget.RemoteViews
-import com.example.test_wid_and.R
+import com.check_phoon.android_widget.R
 import java.text.SimpleDateFormat
 import java.util.*
 

@@ -1,4 +1,4 @@
-package com.example.test_wid_and.widget
+package com.check_phoon.android_widget.widget
 
 import android.appwidget.AppWidgetProvider
 

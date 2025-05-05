@@ -1,4 +1,4 @@
-package com.example.test_wid_and.widget
+package com.check_phoon.android_widget.widget
 
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -7,8 +7,8 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import com.example.test_wid_and.service.WidgetUpdateForegroundService
-import com.example.test_wid_and.util.JobSchedulerHelper
+import com.check_phoon.android_widget.service.WidgetUpdateForegroundService
+import com.check_phoon.android_widget.util.JobSchedulerHelper
 
 /**
  * Base widget provider with common functionality for all widgets

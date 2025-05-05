@@ -1,4 +1,4 @@
-package com.example.test_wid_and.service
+package com.check_phoon.android_widget.service
 
 import android.app.*
 import android.content.Context
@@ -7,12 +7,12 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.example.test_wid_and.MainActivity
-import com.example.test_wid_and.R
-import com.example.test_wid_and.util.WidgetUtil
-import com.example.test_wid_and.util.JobSchedulerHelper
-import com.example.test_wid_and.widget.MyHomeMediumWidget
-import com.example.test_wid_and.widget.MyHomeSmallWidget
+import com.check_phoon.android_widget.MainActivity
+import com.check_phoon.android_widget.R
+import com.check_phoon.android_widget.util.WidgetUtil
+import com.check_phoon.android_widget.util.JobSchedulerHelper
+import com.check_phoon.android_widget.widget.MyHomeMediumWidget
+import com.check_phoon.android_widget.widget.MyHomeSmallWidget
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import es.antonborri.home_widget.HomeWidgetPlugin

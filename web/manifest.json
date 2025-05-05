@@ -1,6 +1,6 @@
 {
-    "name": "test_wid_and",
-    "short_name": "test_wid_and",
+    "name": "android_widget",
+    "short_name": "android_widget",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
