@@ -10,7 +10,9 @@ class AppConstants {
   
   // Data keys
   static const String appLocationData = "AppLocationData";
+  static const String appLanguageData = "AppLanguageData";
 
   // Method channels
   static const String batteryOptChannel = "com.check_phoon.android_widget/battery_optimization";
+  static const String languageChannel = "com.check_phoon.android_widget/language";
 }

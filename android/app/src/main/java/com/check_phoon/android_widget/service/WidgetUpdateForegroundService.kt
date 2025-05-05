@@ -83,51 +83,74 @@ class WidgetUpdateForegroundService : Service() {
         val currentTime = WidgetUtil.getCurrentTimeFormatted()
         Log.d(TAG, "Widget update started at $currentTime in foreground service")
 
-        // Check if any widgets exist before proceeding
-        if (!JobSchedulerHelper.hasActiveWidgets(applicationContext)) {
-            Log.d(TAG, "No widgets found, canceling update")
-            return
+        try {
+            // Check if any widgets exist before proceeding
+            if (!JobSchedulerHelper.hasActiveWidgets(applicationContext)) {
+                Log.d(TAG, "No widgets found, canceling update")
+                return
+            }
+            
+            // Get data from HomeWidgetPlugin
+            val widgetData = HomeWidgetPlugin.getData(applicationContext)
+            
+            // Get location data
+            val locationDataString = widgetData.getString("AppLocationData", null)
+            
+            if (locationDataString == null) {
+                Log.w(TAG, "No location data found")
+                return
+            }
+            
+            val parts = locationDataString.split(",")
+            if (parts.size < 2) {
+                Log.e(TAG, "Invalid location data format: $locationDataString")
+                return
+            }
+            
+            val latitude = parts[0].toDoubleOrNull()
+            val longitude = parts[1].toDoubleOrNull()
+            
+            if (latitude == null || longitude == null) {
+                Log.e(TAG, "Failed to parse coordinates: $locationDataString")
+                return
+            }
+            
+            // Get language preference with a default value
+            val languageCode = widgetData.getString("AppLanguageData", "en") ?: "en"
+            
+            Log.d(TAG, "Fetching PM2.5 data for location: $latitude, $longitude with language: $languageCode")
+            
+            // Try to get cached data first, if not available fetch new data
+            var pm25Data: PM25Service.Companion.PM25Data
+            try {
+                // Use elvis operator to provide fallback empty data
+                pm25Data = PM25Service.getCachedData(languageCode) ?: 
+                        PM25Service.fetchPM25Data(latitude, longitude, languageCode)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error fetching PM2.5 data", e)
+                // Use a fallback empty data object
+                pm25Data = PM25Service.Companion.PM25Data(null, null, null, null)
+            }
+            
+            Log.d(TAG, "PM2.5 data received: ${pm25Data.pmCurrent ?: "No data"} μg/m³")
+            
+            // Update both widget types efficiently with language-specific data
+            updateWidgetsByType(R.layout.my_home_medium_widget, MyHomeMediumWidget::class.java, pm25Data, languageCode)
+            updateWidgetsByType(R.layout.my_home_small_widget, MyHomeSmallWidget::class.java, pm25Data, languageCode)
+            
+            val endTime = WidgetUtil.getCurrentTimeFormatted()
+            Log.d(TAG, "Widget update completed successfully at $endTime")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating widgets", e)
         }
-        
-        // Get location data from HomeWidgetPlugin
-        val widgetData = HomeWidgetPlugin.getData(applicationContext)
-        val locationDataString = widgetData.getString("AppLocationData", null)
-        
-        if (locationDataString == null) {
-            Log.w(TAG, "No location data found")
-            return
-        }
-        
-        val parts = locationDataString.split(",")
-        if (parts.size < 2) {
-            Log.e(TAG, "Invalid location data format: $locationDataString")
-            return
-        }
-        
-        val latitude = parts[0].toDoubleOrNull()
-        val longitude = parts[1].toDoubleOrNull()
-        
-        if (latitude == null || longitude == null) {
-            Log.e(TAG, "Failed to parse coordinates: $locationDataString")
-            return
-        }
-        
-        Log.d(TAG, "Fetching PM2.5 data for location: $latitude, $longitude")
-        
-        // Fetch PM2.5 data
-        val pm25Data = PM25Service.fetchPM25Data(latitude, longitude)
-        
-        Log.d(TAG, "PM2.5 data received: ${pm25Data.pmCurrent ?: "No data"} μg/m³")
-        
-        // Update both widget types efficiently
-        updateWidgetsByType(R.layout.my_home_medium_widget, MyHomeMediumWidget::class.java, pm25Data)
-        updateWidgetsByType(R.layout.my_home_small_widget, MyHomeSmallWidget::class.java, pm25Data)
-        
-        val endTime = WidgetUtil.getCurrentTimeFormatted()
-        Log.d(TAG, "Widget update completed successfully at $endTime")
     }
-    
-    private fun updateWidgetsByType(layoutId: Int, widgetClass: Class<*>, pm25Data: WidgetUtil.PM25Data) {
+
+    private fun updateWidgetsByType(
+        layoutId: Int, 
+        widgetClass: Class<*>, 
+        pm25Data: PM25Service.Companion.PM25Data,
+        languageCode: String
+    ) {
         val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
         val widgetIds = appWidgetManager.getAppWidgetIds(
             ComponentName(applicationContext, widgetClass)
@@ -139,7 +162,8 @@ class WidgetUpdateForegroundService : Service() {
             val views = WidgetUtil.buildWidgetViews(
                 applicationContext, 
                 layoutId,
-                pm25Data
+                pm25Data,
+                languageCode
             )
             
             for (widgetId in widgetIds) {
@@ -152,7 +176,7 @@ class WidgetUpdateForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Widget Updates",
+                getString(R.string.updating_widget_title),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Used for updating air quality widgets"
@@ -173,8 +197,8 @@ class WidgetUpdateForegroundService : Service() {
         )
         
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Updating Air Quality Widget")
-            .setContentText("Fetching latest air quality data...")
+            .setContentTitle(getString(R.string.updating_widget_title))
+            .setContentText(getString(R.string.updating_widget_text))
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setContentIntent(pendingIntent)

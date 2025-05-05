@@ -10,14 +10,23 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.content.Context
 import io.flutter.plugins.GeneratedPluginRegistrant
+import android.content.res.Configuration
+import android.content.res.Resources
+import android.util.Log
+import java.util.Locale
+import android.content.SharedPreferences
 
 class MainActivity: FlutterActivity() {
-    private val CHANNEL = "com.check_phoon.android_widget/battery_optimization"
+    private val BATTERY_CHANNEL = "com.check_phoon.android_widget/battery_optimization"
+    private val LANGUAGE_CHANNEL = "com.check_phoon.android_widget/language"
+    private val PREFS_NAME = "WidgetLanguagePrefs"
+    private val LANGUAGE_KEY = "language_code"
     
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         GeneratedPluginRegistrant.registerWith(flutterEngine)
         
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        // Battery optimization method channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BATTERY_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isIgnoringBatteryOptimizations" -> {
                     result.success(isIgnoringBatteryOptimizations())
@@ -29,6 +38,30 @@ class MainActivity: FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        
+        // Language method channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LANGUAGE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "changeLanguage" -> {
+                    val language = call.argument<String>("language") ?: "Eng"
+                    val locale = mapFlutterLanguageToLocale(language)
+                    updateLocale(locale)
+                    result.success(true)
+                }
+                "getCurrentLanguage" -> {
+                    val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    val languageCode = prefs.getString(LANGUAGE_KEY, "en") ?: "en"
+                    val flutterLanguage = if (languageCode == "en") "Eng" else "ไทย"
+                    result.success(flutterLanguage)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+    
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        initializeLanguage()
     }
     
     private fun isIgnoringBatteryOptimizations(): Boolean {
@@ -49,6 +82,60 @@ class MainActivity: FlutterActivity() {
                 }
                 startActivity(intent)
             }
+        }
+    }
+    
+    // Map Flutter language to Android Locale
+    private fun mapFlutterLanguageToLocale(flutterLanguage: String): Locale {
+        return when (flutterLanguage) {
+            "ไทย" -> Locale("th")
+            else -> Locale("en") // Default to English
+        }
+    }
+    
+    // Update app locale
+    private fun updateLocale(locale: Locale) {
+        try {
+            // Save language preference
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val editor = prefs.edit()
+            editor.putString(LANGUAGE_KEY, locale.language)
+            editor.apply()
+            
+            // Set default locale
+            Locale.setDefault(locale)
+            
+            // Update configuration
+            val resources = resources
+            val config = Configuration(resources.configuration)
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                config.setLocale(locale)
+                createConfigurationContext(config)
+            } else {
+                @Suppress("DEPRECATION")
+                config.locale = locale
+                @Suppress("DEPRECATION")
+                resources.updateConfiguration(config, resources.displayMetrics)
+            }
+            
+            Log.d("MainActivity", "Locale updated to: ${locale.language}")
+            
+            // No need to recreate activity as widgets update via service
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error updating locale", e)
+        }
+    }
+    
+    // Initialize language based on saved preference
+    private fun initializeLanguage() {
+        try {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val languageCode = prefs.getString(LANGUAGE_KEY, "en") ?: "en"
+            val locale = Locale(languageCode)
+            updateLocale(locale)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error initializing language", e)
         }
     }
 }

@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:home_widget/home_widget.dart';
 import '../constants/app_constants.dart';
 import 'package:geolocator/geolocator.dart';
+import '../main.dart' show lang;
 
 class WidgetService {
   Future<void> initialize() async {
@@ -10,14 +11,16 @@ class WidgetService {
   }
 
   Future<void> updateWidgetsWithLocation(double latitude, double longitude) async {
-    String data = "$latitude,$longitude";
+    String locationData = "$latitude,$longitude";
+    String languageCode = lang == 'Eng' ? 'en' : 'th';
     
     try {
       // Create a list to hold our futures
       List<Future> futures = [];
       
       // Always save the widget data
-      futures.add(HomeWidget.saveWidgetData(AppConstants.appLocationData, data));
+      futures.add(HomeWidget.saveWidgetData(AppConstants.appLocationData, locationData));
+      futures.add(HomeWidget.saveWidgetData(AppConstants.appLanguageData, languageCode));
       
       // Add platform-specific widget updates
       if (Platform.isIOS) {
@@ -30,7 +33,7 @@ class WidgetService {
       // Now wait for all the futures to complete
       await Future.wait(futures);
       
-      print("Widgets updated with location: $data at ${DateTime.now().toLocal()}");
+      print("Widgets updated with location: $locationData and language: $languageCode at ${DateTime.now().toLocal()}");
     } catch (e) {
       print("Error updating widgets: $e");
     }

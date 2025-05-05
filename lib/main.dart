@@ -1,21 +1,37 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/location_page.dart';
 import 'constants/app_constants.dart';
 import 'services/widget_service.dart';
+import 'services/language_service.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
 
-void main() {
+// Global language variable
+String lang = 'Eng';  // Default language
+
+void main() async {  // Changed to async
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Set up HomeWidget and trigger immediate widget update
+  // Initialize language from saved preferences
+  final prefs = await SharedPreferences.getInstance();
+  lang = prefs.getString('language') ?? 'Eng';
+  
+  // Set up HomeWidget
   HomeWidget.setAppGroupId(AppConstants.appGroupId);
+  
+  // Initialize LanguageService
+  final languageService = LanguageService();
+  await languageService.initialize();
   
   // Request battery optimization exception on Android
   if (Platform.isAndroid) {
     _requestBatteryOptimizationExemption();
+    
+    // Send language to Android
+    await languageService.updateLanguage(lang);
   }
   
   // Initialize the app
@@ -46,15 +62,8 @@ Future<void> _updateWidgetsOnAppStart() async {
   final widgetService = WidgetService();
   await widgetService.initialize();
   
-  // Force widgets to update on both platforms
-  await HomeWidget.updateWidget(
-    iOSName: AppConstants.iOSWidgetName,
-    androidName: AppConstants.androidMediumWidgetName
-  );
-  
-  await HomeWidget.updateWidget(
-    androidName: AppConstants.androidSmallWidgetName
-  );
+  // Force widgets to update on both platforms with the current language
+  await widgetService.updateWithLastLocation();
   
   print('Widgets updated on app start');
 }

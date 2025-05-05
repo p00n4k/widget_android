@@ -3,4 +3,21 @@
     <string name="appwidget_text">EXAMPLE</string>
     <string name="add_widget">Add widget</string>
     <string name="app_widget_description">This is an app widget description</string>
+    
+    <!-- Widget Strings -->
+    <string name="updating_widget_title">Updating Air Quality Widget</string>
+    <string name="updating_widget_text">Fetching latest air quality data...</string>
+    <string name="pm25_hourly">PM2.5 Hourly</string>
+    <string name="pm25_unit">µg/m³</string>
+    <string name="no_data">No data</string>
+    
+    <!-- Air Quality Levels -->
+    <string name="air_very_good">Very Good Air</string>
+    <string name="air_good">Good Air</string>
+    <string name="air_moderate">Moderate</string>
+    <string name="air_unhealthy">Starting to Affect Health</string>
+    <string name="air_very_unhealthy">Affects Health</string>
+    
+    <!-- Debug -->
+    <string name="current_language">Current Language: %1$s</string>
 </resources>
