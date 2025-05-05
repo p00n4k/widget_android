@@ -27,7 +27,7 @@ void main() {
 
 Future<void> _requestBatteryOptimizationExemption() async {
   try {
-    const platform = MethodChannel('com.check_phoon.android_widget/battery_optimization');
+    const platform = MethodChannel(AppConstants.batteryOptChannel);
     final bool isIgnoring = await platform.invokeMethod('isIgnoringBatteryOptimizations');
     
     if (!isIgnoring) {

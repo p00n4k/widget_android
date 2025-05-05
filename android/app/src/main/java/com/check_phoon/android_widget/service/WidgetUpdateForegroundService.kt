@@ -91,7 +91,7 @@ class WidgetUpdateForegroundService : Service() {
         
         // Get location data from HomeWidgetPlugin
         val widgetData = HomeWidgetPlugin.getData(applicationContext)
-        val locationDataString = widgetData.getString("locationData_from_flutter_APP_new_5", null)
+        val locationDataString = widgetData.getString("AppLocationData", null)
         
         if (locationDataString == null) {
             Log.w(TAG, "No location data found")

@@ -17,7 +17,7 @@ class WidgetService {
       List<Future> futures = [];
       
       // Always save the widget data
-      futures.add(HomeWidget.saveWidgetData(AppConstants.dataKey, data));
+      futures.add(HomeWidget.saveWidgetData(AppConstants.appLocationData, data));
       
       // Add platform-specific widget updates
       if (Platform.isIOS) {

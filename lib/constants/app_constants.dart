@@ -9,5 +9,8 @@ class AppConstants {
   static const String androidSmallWidgetName = "widget.MyHomeSmallWidget";
   
   // Data keys
-  static const String dataKey = "locationData_from_flutter_APP_new_5";
+  static const String appLocationData = "AppLocationData";
+
+  // Method channels
+  static const String batteryOptChannel = "com.check_phoon.android_widget/battery_optimization";
 }
