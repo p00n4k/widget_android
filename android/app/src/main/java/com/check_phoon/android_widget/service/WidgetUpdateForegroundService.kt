@@ -15,8 +15,10 @@ import com.check_phoon.android_widget.widget.MyHomeMediumWidget
 import com.check_phoon.android_widget.widget.MyHomeSmallWidget
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import android.content.res.Configuration
 import es.antonborri.home_widget.HomeWidgetPlugin
 import kotlinx.coroutines.*
+import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 class WidgetUpdateForegroundService : Service() {
@@ -24,6 +26,8 @@ class WidgetUpdateForegroundService : Service() {
         private const val TAG = "WidgetUpdateFgService"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "widget_update_channel"
+        private const val PREFS_NAME = "WidgetLanguagePrefs"
+        private const val LANGUAGE_KEY = "language_code"
         
         // Flag to prevent multiple simultaneous updates
         private val isUpdating = AtomicBoolean(false)
@@ -56,6 +60,9 @@ class WidgetUpdateForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Service started, updating widgets")
         
+        // Apply saved locale before doing anything
+        applyLocaleFromPreferences()
+        
         // Show a foreground notification
         val notification = createNotification()
         startForeground(NOTIFICATION_ID, notification)
@@ -77,6 +84,37 @@ class WidgetUpdateForegroundService : Service() {
         
         // If service is killed, don't restart automatically (JobScheduler will handle scheduling)
         return START_NOT_STICKY
+    }
+    
+    // Apply the locale from saved preferences
+    private fun applyLocaleFromPreferences() {
+        try {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val languageCode = prefs.getString(LANGUAGE_KEY, "en") ?: "en"
+            val locale = Locale(languageCode)
+            
+            // Set default locale
+            Locale.setDefault(locale)
+            
+            // Update configuration
+            val resources = resources
+            val config = Configuration(resources.configuration)
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                config.setLocale(locale)
+                createConfigurationContext(config)
+                resources.updateConfiguration(config, resources.displayMetrics)
+            } else {
+                @Suppress("DEPRECATION")
+                config.locale = locale
+                @Suppress("DEPRECATION")
+                resources.updateConfiguration(config, resources.displayMetrics)
+            }
+            
+            Log.d(TAG, "Applied locale for widget update: $languageCode")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error applying locale", e)
+        }
     }
     
     private suspend fun updateWidgets() {
@@ -116,16 +154,16 @@ class WidgetUpdateForegroundService : Service() {
             }
             
             // Get language preference with a default value
-            val languageCode = widgetData.getString("AppLanguageData", "en") ?: "en"
-            
-            Log.d(TAG, "Fetching PM2.5 data for location: $latitude, $longitude with language: $languageCode")
+            // Use the current locale because we've already applied it
+            val languageCode = Locale.getDefault().language
+            Log.d(TAG, "Current language code from locale: $languageCode")
             
             // Try to get cached data first, if not available fetch new data
             var pm25Data: PM25Service.Companion.PM25Data
             try {
                 // Use elvis operator to provide fallback empty data
                 pm25Data = PM25Service.getCachedData(languageCode) ?: 
-                        PM25Service.fetchPM25Data(latitude, longitude, languageCode)
+                           PM25Service.fetchPM25Data(latitude, longitude, languageCode)
             } catch (e: Exception) {
                 Log.e(TAG, "Error fetching PM2.5 data", e)
                 // Use a fallback empty data object
@@ -144,7 +182,7 @@ class WidgetUpdateForegroundService : Service() {
             Log.e(TAG, "Error updating widgets", e)
         }
     }
-
+    
     private fun updateWidgetsByType(
         layoutId: Int, 
         widgetClass: Class<*>, 
@@ -156,7 +194,7 @@ class WidgetUpdateForegroundService : Service() {
             ComponentName(applicationContext, widgetClass)
         )
         
-        Log.d(TAG, "Updating ${widgetIds.size} widgets of type ${widgetClass.simpleName}")
+        Log.d(TAG, "Updating ${widgetIds.size} widgets of type ${widgetClass.simpleName} with language: $languageCode")
         
         if (widgetIds.isNotEmpty()) {
             val views = WidgetUtil.buildWidgetViews(

@@ -55,8 +55,11 @@ abstract class BaseWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         
-        if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
-            Log.d(TAG, "Received widget update request")
+        // If we receive a language update flag, force update the widgets
+        if (intent.getBooleanExtra("language_update", false) || 
+            intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+            Log.d(TAG, "Received widget update request" + 
+                  (if (intent.getBooleanExtra("language_update", false)) " (language change)" else ""))
             WidgetUpdateForegroundService.startService(context)
         }
     }

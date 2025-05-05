@@ -18,23 +18,38 @@ class LanguageService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('language', languageCode);
       
-      // Set in main.dart global variable
-      // This is done outside this function in the calling code
-      
       // Send to widgets via HomeWidget
-      await HomeWidget.saveWidgetData(AppConstants.appLanguageData, 
-        languageCode == 'Eng' ? 'en' : 'th');
+      final nativeLanguageCode = languageCode == 'Eng' ? 'en' : 'th';
+      await HomeWidget.saveWidgetData(AppConstants.appLanguageData, nativeLanguageCode);
       
       // If on Android, send via method channel too
       if (Platform.isAndroid) {
         await _channel.invokeMethod('changeLanguage', {'language': languageCode});
+      } else if (Platform.isIOS) {
+        // For iOS, explicitly request update
+        await HomeWidget.updateWidget(iOSName: AppConstants.iOSWidgetName);
       }
       
       print('Language updated to: $languageCode');
       
-      // No need to force update widgets here as caller will do it
+      // Force update the widgets to refresh UI
+      await _forceWidgetUpdate();
     } catch (e) {
       print('Error updating language: $e');
+    }
+  }
+  
+  // Force update all widgets
+  Future<void> _forceWidgetUpdate() async {
+    try {
+      if (Platform.isIOS) {
+        await HomeWidget.updateWidget(iOSName: AppConstants.iOSWidgetName);
+      } else if (Platform.isAndroid) {
+        await HomeWidget.updateWidget(androidName: AppConstants.androidMediumWidgetName);
+        await HomeWidget.updateWidget(androidName: AppConstants.androidSmallWidgetName);
+      }
+    } catch (e) {
+      print('Error forcing widget update: $e');
     }
   }
   
