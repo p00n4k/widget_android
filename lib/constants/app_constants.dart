@@ -5,8 +5,8 @@ class AppConstants {
   
   // Widget names
   static const String iOSWidgetName = "MyHomeWidget";
-  static const String androidMediumWidgetName = "MyHomeMediumWidget";
-  static const String androidSmallWidgetName = "MyHomeSmallWidget";
+  static const String androidMediumWidgetName = "widget.MyHomeMediumWidget";
+  static const String androidSmallWidgetName = "widget.MyHomeSmallWidget";
   
   // Data keys
   static const String dataKey = "locationData_from_flutter_APP_new_5";

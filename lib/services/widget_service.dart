@@ -1,4 +1,5 @@
 // lib/services/widget_service.dart
+import 'dart:io' show Platform;
 import 'package:home_widget/home_widget.dart';
 import '../constants/app_constants.dart';
 import 'package:geolocator/geolocator.dart';
@@ -12,21 +13,22 @@ class WidgetService {
     String data = "$latitude,$longitude";
     
     try {
-      // Save location data for widgets
-      await HomeWidget.saveWidgetData(AppConstants.dataKey, data);
+      // Create a list to hold our futures
+      List<Future> futures = [];
       
-      // Update iOS widget
-      await HomeWidget.updateWidget(
-        iOSName: AppConstants.iOSWidgetName
-      );
+      // Always save the widget data
+      futures.add(HomeWidget.saveWidgetData(AppConstants.dataKey, data));
       
-      // Update Android widgets
-      await HomeWidget.updateWidget(
-        androidName: AppConstants.androidMediumWidgetName
-      );
-      await HomeWidget.updateWidget(
-        androidName: AppConstants.androidSmallWidgetName
-      );
+      // Add platform-specific widget updates
+      if (Platform.isIOS) {
+        futures.add(HomeWidget.updateWidget(iOSName: AppConstants.iOSWidgetName));
+      } else if (Platform.isAndroid) {
+        futures.add(HomeWidget.updateWidget(androidName: AppConstants.androidMediumWidgetName));
+        futures.add(HomeWidget.updateWidget(androidName: AppConstants.androidSmallWidgetName));
+      }
+      
+      // Now wait for all the futures to complete
+      await Future.wait(futures);
       
       print("Widgets updated with location: $data at ${DateTime.now().toLocal()}");
     } catch (e) {
@@ -37,18 +39,21 @@ class WidgetService {
   /// Force update widgets with last saved location
   Future<void> forceWidgetUpdate() async {
     try {
-      // Update iOS widget
-      await HomeWidget.updateWidget(
-        iOSName: AppConstants.iOSWidgetName
-      );
-      
-      // Update Android widgets
-      await HomeWidget.updateWidget(
-        androidName: AppConstants.androidMediumWidgetName
-      );
-      await HomeWidget.updateWidget(
-        androidName: AppConstants.androidSmallWidgetName
-      );
+      // Update widgets for the current platform only
+      if (Platform.isIOS) {
+        // Update iOS widget
+        await HomeWidget.updateWidget(
+          iOSName: AppConstants.iOSWidgetName
+        );
+      } else if (Platform.isAndroid) {
+        // Update Android widgets
+        await HomeWidget.updateWidget(
+          androidName: AppConstants.androidMediumWidgetName
+        );
+        await HomeWidget.updateWidget(
+          androidName: AppConstants.androidSmallWidgetName
+        );
+      }
       
       print("Widgets force updated at ${DateTime.now().toLocal()}");
     } catch (e) {

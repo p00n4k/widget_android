@@ -20,7 +20,7 @@ class _LocationPageState extends State<LocationPage> with WidgetsBindingObserver
     super.initState();
     // Register as an observer for app lifecycle changes
     WidgetsBinding.instance.addObserver(this);
-    _initServices();
+    Future.microtask(() => _initServices());
   }
 
   @override
