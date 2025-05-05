@@ -35,6 +35,8 @@ class LocationService {
     try {
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
+        forceAndroidLocationManager: true,  // Force fresh location data
+        timeLimit: Duration(seconds: 10),   // Add timeout to ensure fresh data
       );
       return LocationResult(position: position);
     } catch (e) {

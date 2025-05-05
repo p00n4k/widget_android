@@ -53,15 +53,16 @@ Future<void> _updateWidgetsOnAppStart() async {
   lang = widgetService.currentLanguage;
   print('Current language from widget service: $lang');
   
-  // iOS widget
+  // Update widgets based on platform
   if (Platform.isIOS) {
     await HomeWidget.updateWidget(
       iOSName: AppConstants.iOSWidgetName,
     );
+    print('iOS widget updated on app start');
   }
   
-  // Android widgets - update each one separately
   if (Platform.isAndroid) {
+    // Android widgets - update each one separately
     await HomeWidget.updateWidget(
       androidName: AppConstants.androidMediumWidgetName
     );
@@ -69,6 +70,7 @@ Future<void> _updateWidgetsOnAppStart() async {
     await HomeWidget.updateWidget(
       androidName: AppConstants.androidSmallWidgetName
     );
+    print('Android widgets updated on app start');
   }
   
   print('Widgets updated on app start with language: $lang');

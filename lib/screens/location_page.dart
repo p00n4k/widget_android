@@ -62,6 +62,7 @@ class _LocationPageState extends State<LocationPage> with WidgetsBindingObserver
         if (locationResult.error != null) {
           locationMessage = locationResult.error!;
         } else if (locationResult.position != null) {
+          print("Latitude: ${locationResult.position!.latitude}, Longitude: ${locationResult.position!.longitude}");
           locationMessage = "Latitude: ${locationResult.position!.latitude}, "
               "Longitude: ${locationResult.position!.longitude}";
           

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
 import '../constants/app_constants.dart';
 import 'package:geolocator/geolocator.dart';
+import 'dart:io';
 
 class WidgetService {
   final MethodChannel _languageChannel = MethodChannel(AppConstants.languageChannel);
@@ -81,20 +82,23 @@ class WidgetService {
         // Save location data for widgets
         await HomeWidget.saveWidgetData(AppConstants.dataKey, data);
         
-        // Update iOS widget - specify null for androidName
-        await HomeWidget.updateWidget(
-          iOSName: AppConstants.iOSWidgetName,
-          androidName: null
-        );
+        // Update widgets based on platform
+        if (Platform.isIOS) {
+          await HomeWidget.updateWidget(
+            iOSName: AppConstants.iOSWidgetName,
+          );
+        }
         
-        // Update Android widgets - specify each one separately
-        await HomeWidget.updateWidget(
-          androidName: AppConstants.androidMediumWidgetName
-        );
-        
-        await HomeWidget.updateWidget(
-          androidName: AppConstants.androidSmallWidgetName
-        );
+        if (Platform.isAndroid) {
+          // Update Android widgets - specify each one separately
+          await HomeWidget.updateWidget(
+            androidName: AppConstants.androidMediumWidgetName
+          );
+          
+          await HomeWidget.updateWidget(
+            androidName: AppConstants.androidSmallWidgetName
+          );
+        }
         
         print("Widgets updated with: $data at ${DateTime.now().toLocal()}");
       } catch (e) {
@@ -110,20 +114,25 @@ class WidgetService {
     try {
       print("Force updating widgets");
       
-      // Update iOS widget - specify null for androidName
-      await HomeWidget.updateWidget(
-        iOSName: AppConstants.iOSWidgetName,
-        androidName: null
-      );
+      // Update widgets based on platform
+      if (Platform.isIOS) {
+        await HomeWidget.updateWidget(
+          iOSName: AppConstants.iOSWidgetName,
+        );
+        print("iOS widget updated");
+      }
       
-      // Update Android widgets - specify each one separately
-      await HomeWidget.updateWidget(
-        androidName: AppConstants.androidMediumWidgetName
-      );
-      
-      await HomeWidget.updateWidget(
-        androidName: AppConstants.androidSmallWidgetName
-      );
+      if (Platform.isAndroid) {
+        // Update Android widgets - specify each one separately
+        await HomeWidget.updateWidget(
+          androidName: AppConstants.androidMediumWidgetName
+        );
+        
+        await HomeWidget.updateWidget(
+          androidName: AppConstants.androidSmallWidgetName
+        );
+        print("Android widgets updated");
+      }
       
       print("Widgets force updated at ${DateTime.now().toLocal()}");
     } catch (e) {
