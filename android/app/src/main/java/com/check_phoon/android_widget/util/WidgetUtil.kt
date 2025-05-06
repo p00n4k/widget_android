@@ -119,7 +119,7 @@ object WidgetUtil {
                             views.setTextViewText(pmTextId, "-")
                         } else {
                             views.setTextViewText(hourTextId, hour)
-                            views.setTextViewText(pmTextId, String.format("%.1f", pm25Value))
+                            views.setTextViewText(pmTextId, String.format("%.0f", pm25Value))
                         }
                         
                         // Set text color for these elements

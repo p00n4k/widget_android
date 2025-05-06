@@ -56,7 +56,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/pm25_hourly"
                     android:textColor="#FFFFFF"
-                    android:textSize="14sp"
+                    android:textSize="15sp"
                     android:textStyle="normal"
                     />
 
@@ -100,7 +100,7 @@
                             android:layout_height="wrap_content"
                             android:text="000"
                             android:textColor="#FFFFFF"
-                            android:textSize="28sp"
+                            android:textSize="30sp"
                             android:textStyle="bold"
                             />
 
@@ -111,7 +111,7 @@
                             android:layout_height="wrap_content"
                             android:text="@string/pm25_unit"
                             android:textColor="#FFFFFF"
-                            android:textSize="8sp"
+                            android:textSize="10sp"
                             android:textStyle="normal"
                           />
                     </LinearLayout>

@@ -44,7 +44,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/pm25_hourly"
                     android:textColor="#FFFFFF"
-                    android:textSize="14sp"
+                    android:textSize="15sp"
                     android:textStyle="normal" />
 
                 <ImageView
@@ -87,7 +87,7 @@
                             android:layout_height="wrap_content"
                             android:text="000"
                             android:textColor="#FFFFFF"
-                            android:textSize="28sp"
+                            android:textSize="30sp"
                             android:textStyle="bold" />
 
                         <TextView
@@ -96,7 +96,7 @@
                             android:layout_height="wrap_content"
                             android:text="@string/pm25_unit"
                             android:textColor="#FFFFFF"
-                            android:textSize="8sp"
+                            android:textSize="10sp"
                             android:textStyle="normal" />
                     </LinearLayout>
 
@@ -119,7 +119,7 @@
             android:layout_weight="1"
             android:gravity="center_horizontal|top"
             android:orientation="vertical"
-            android:background="@drawable/debug_border_red">
+            >
 
             <!-- Date and Time section -->
             <LinearLayout
@@ -128,7 +128,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:gravity="center"
-                android:background="@drawable/debug_border_red">
+                >
 
                 <TextView
                     android:id="@+id/date_text"
@@ -136,9 +136,9 @@
                     android:layout_height="wrap_content"
                     android:text="วันที่ 3 มีนาคม 2568"
                     android:textColor="#FFFFFF"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textStyle="normal"
-                    android:background="@drawable/debug_border_red" />
+                     />
 
                 <TextView
                     android:id="@+id/time_text"
@@ -146,9 +146,9 @@
                     android:layout_height="wrap_content"
                     android:text="12:34:56"
                     android:textColor="#FFFFFF"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textStyle="normal"
-                    android:background="@drawable/debug_border_red" />
+                     />
             </LinearLayout>
 
             <!-- Hourly Data Container with fixed boxes -->
@@ -157,7 +157,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:layout_marginTop="8dp"
-                android:background="@drawable/debug_border_red">
+                >
 
                 <!-- First Hour Box -->
                 <LinearLayout
@@ -174,7 +174,7 @@
                         android:layout_height="wrap_content"
                         android:text="--"
                         android:textColor="#FFFFFF"
-                        android:textSize="11sp" />
+                        android:textSize="12sp" />
                         
                     <TextView
                         android:id="@+id/pm_text_1"
@@ -182,7 +182,8 @@
                         android:layout_height="wrap_content"
                         android:text="--"
                         android:textColor="#FFFFFF"
-                        android:textSize="11sp" />
+                        android:textStyle="bold"
+                        android:textSize="16sp" />
                 </LinearLayout>
 
                 <!-- Second Hour Box -->
@@ -200,7 +201,7 @@
                         android:layout_height="wrap_content"
                         android:text="--"
                         android:textColor="#FFFFFF"
-                        android:textSize="11sp" />
+                        android:textSize="12sp" />
                         
                     <TextView
                         android:id="@+id/pm_text_2"
@@ -208,7 +209,8 @@
                         android:layout_height="wrap_content"
                         android:text="--"
                         android:textColor="#FFFFFF"
-                        android:textSize="11sp" />
+                        android:textStyle="bold"
+                        android:textSize="16sp" />
                 </LinearLayout>
 
                 <!-- Third Hour Box -->
@@ -226,8 +228,8 @@
                         android:layout_height="wrap_content"
                         android:text="--"
                         android:textColor="#FFFFFF"
-                        android:textSize="11sp"
-                        android:background="@drawable/debug_border_red" />
+                        android:textSize="12sp"
+                         />
                         
                     <TextView
                         android:id="@+id/pm_text_3"
@@ -235,8 +237,9 @@
                         android:layout_height="wrap_content"
                         android:text="--"
                         android:textColor="#FFFFFF"
-                        android:textSize="11sp"
-                        android:background="@drawable/debug_border_red" />
+                        android:textStyle="bold"
+                        android:textSize="16sp"
+                         />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>
