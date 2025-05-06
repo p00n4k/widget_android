@@ -83,7 +83,8 @@ object WidgetUtil {
             
             // Set date and time text safely
             val displayDate = dateString ?: context.getString(R.string.no_data)
-            views.setTextViewText(R.id.date_text, displayDate)
+            val cleanedDateThai = displayDate?.replace(Regex("(จันทร์|อังคาร|พุธ|พฤหัสบดี|ศุกร์|เสาร์|อาทิตย์)"), "")
+            views.setTextViewText(R.id.date_text, cleanedDateThai)
             
             val displayTime = timeString ?: context.getString(R.string.no_data)
             views.setTextViewText(R.id.time_text, displayTime)
