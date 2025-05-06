@@ -3,6 +3,7 @@ package com.check_phoon.android_widget.util
 import android.content.Context
 import android.graphics.Color
 import android.util.Log
+import android.util.TypedValue
 import android.widget.RemoteViews
 import com.check_phoon.android_widget.R
 import com.check_phoon.android_widget.service.PM25Service
@@ -25,7 +26,8 @@ object WidgetUtil {
             // Extract data from PM25Data object safely
             val pmCurrent = pm25Data.pmCurrent
             val hourlyData = pm25Data.hourlyReadings
-            val dateTimeString = pm25Data.dateTimeString
+            val dateString = pm25Data.dateString
+            val timeString = pm25Data.timeString
             
             // Display PM2.5 value safely
             val pm25Text = when {
@@ -71,6 +73,7 @@ object WidgetUtil {
             views.setTextColor(R.id.text_pm25_unit, colorParsed)
             views.setTextColor(R.id.text_pm25_header, colorParsed)
             views.setTextColor(R.id.date_text, colorParsed)
+            views.setTextColor(R.id.time_text, colorParsed)
             
             // Set hourly header text from string resources
             views.setTextViewText(R.id.text_pm25_header, context.getString(R.string.pm25_hourly))
@@ -78,36 +81,77 @@ object WidgetUtil {
             // Set units text from resources
             views.setTextViewText(R.id.text_pm25_unit, context.getString(R.string.pm25_unit))
             
-            // Set date text safely
-            views.setTextViewText(R.id.date_text, dateTimeString ?: context.getString(R.string.no_data))
-    
-            // Add hourly readings
-            views.removeAllViews(R.id.hourly_readings_container)
+            // Set date and time text safely
+            val displayDate = dateString ?: context.getString(R.string.no_data)
+            views.setTextViewText(R.id.date_text, displayDate)
+            
+            val displayTime = timeString ?: context.getString(R.string.no_data)
+            views.setTextViewText(R.id.time_text, displayTime)
+            
+            // Set text size and max lines for date and time
+            views.setTextViewTextSize(R.id.date_text, TypedValue.COMPLEX_UNIT_SP, 12f)
+            views.setInt(R.id.date_text, "setMaxLines", 1)
+            views.setInt(R.id.date_text, "setGravity", android.view.Gravity.CENTER)
+            
+            views.setTextViewTextSize(R.id.time_text, TypedValue.COMPLEX_UNIT_SP, 12f)
+            views.setInt(R.id.time_text, "setMaxLines", 1)
+            views.setInt(R.id.time_text, "setGravity", android.view.Gravity.CENTER)
+            
+            // Process hourly data for the three fixed boxes
             if (!hourlyData.isNullOrEmpty()) {
-                // Limit to a reasonable number of entries to prevent overflow
+                // We have 3 fixed hour boxes, so we'll fill them with available data
+                val hourBoxIds = listOf(
+                    Pair(R.id.hour_text_1, R.id.pm_text_1),
+                    Pair(R.id.hour_text_2, R.id.pm_text_2),
+                    Pair(R.id.hour_text_3, R.id.pm_text_3)
+                )
+                
+                // Fill available data, limited to 3 entries
                 val limitedData = hourlyData.take(3)
-                for ((hour, pm25) in limitedData) {
-                    // Skip invalid values
-                    if (pm25.isNaN() || pm25.isInfinite()) continue
-                    
-                    val hourlyView = RemoteViews(context.packageName, R.layout.hourly_reading).apply {
-                        setTextViewText(R.id.hour_text, hour)
-                        setTextColor(R.id.pm_text, colorParsed)
-                        setTextColor(R.id.hour_text, colorParsed)
-                        setTextViewText(R.id.pm_text, String.format("%.1f", pm25))
+                for (i in limitedData.indices) {
+                    if (i < hourBoxIds.size) {
+                        val (hour, pm25Value) = limitedData[i]
+                        val (hourTextId, pmTextId) = hourBoxIds[i]
+                        
+                        // Skip invalid values
+                        if (pm25Value.isNaN() || pm25Value.isInfinite()) {
+                            views.setTextViewText(hourTextId, hour)
+                            views.setTextViewText(pmTextId, "-")
+                        } else {
+                            views.setTextViewText(hourTextId, hour)
+                            views.setTextViewText(pmTextId, String.format("%.1f", pm25Value))
+                        }
+                        
+                        // Set text color for these elements
+                        views.setTextColor(hourTextId, colorParsed)
+                        views.setTextColor(pmTextId, colorParsed)
                     }
-                    views.addView(R.id.hourly_readings_container, hourlyView)
                 }
                 
-                // If we filtered out all entries, show no data
-                // Check if container is empty by adding a dummy view and seeing if it's the first
-                val countBefore = views.getCount(R.id.hourly_readings_container)
-                if (countBefore == 0) {
-                    addNoDataHourlyView(context, views, colorParsed)
+                // For any remaining boxes (if less than 3 entries), set to "--"
+                for (i in limitedData.size until hourBoxIds.size) {
+                    val (hourTextId, pmTextId) = hourBoxIds[i]
+                    views.setTextViewText(hourTextId, "--")
+                    views.setTextViewText(pmTextId, "--")
+                    views.setTextColor(hourTextId, colorParsed)
+                    views.setTextColor(pmTextId, colorParsed)
                 }
             } else {
-                addNoDataHourlyView(context, views, colorParsed)
+                // No data available, set all to "--"
+                val hourBoxIds = listOf(
+                    Pair(R.id.hour_text_1, R.id.pm_text_1),
+                    Pair(R.id.hour_text_2, R.id.pm_text_2),
+                    Pair(R.id.hour_text_3, R.id.pm_text_3)
+                )
+                
+                for ((hourTextId, pmTextId) in hourBoxIds) {
+                    views.setTextViewText(hourTextId, "--")
+                    views.setTextViewText(pmTextId, "--")
+                    views.setTextColor(hourTextId, colorParsed)
+                    views.setTextColor(pmTextId, colorParsed)
+                }
             }
+            
         } catch (e: Exception) {
             // If anything fails, set to fallback state
             Log.e(TAG, "Error building widget views", e)
@@ -125,35 +169,30 @@ object WidgetUtil {
             views.setTextColor(R.id.text_pm25_unit, colorParsed)
             views.setTextColor(R.id.text_pm25_header, colorParsed)
             views.setTextColor(R.id.date_text, colorParsed)
+            views.setTextColor(R.id.time_text, colorParsed)
             
             // Set default headers
             views.setTextViewText(R.id.text_pm25_header, context.getString(R.string.pm25_hourly))
             views.setTextViewText(R.id.text_pm25_unit, context.getString(R.string.pm25_unit))
             views.setTextViewText(R.id.date_text, context.getString(R.string.no_data))
+            views.setTextViewText(R.id.time_text, context.getString(R.string.no_data))
             
-            // Add no data hourly view
-            views.removeAllViews(R.id.hourly_readings_container)
-            addNoDataHourlyView(context, views, colorParsed)
+            // Set default values for hour boxes
+            val hourBoxIds = listOf(
+                Pair(R.id.hour_text_1, R.id.pm_text_1),
+                Pair(R.id.hour_text_2, R.id.pm_text_2),
+                Pair(R.id.hour_text_3, R.id.pm_text_3)
+            )
+            
+            for ((hourTextId, pmTextId) in hourBoxIds) {
+                views.setTextViewText(hourTextId, "--")
+                views.setTextViewText(pmTextId, "--")
+                views.setTextColor(hourTextId, colorParsed)
+                views.setTextColor(pmTextId, colorParsed)
+            }
         }
         
         return views
-    }
-    
-    private fun addNoDataHourlyView(context: Context, views: RemoteViews, textColor: Int) {
-        val noDataView = RemoteViews(context.packageName, R.layout.hourly_reading).apply {
-            setTextViewText(R.id.hour_text, context.getString(R.string.no_data))
-            setTextViewText(R.id.pm_text, "-")
-            setTextColor(R.id.hour_text, textColor)
-            setTextColor(R.id.pm_text, textColor)
-        }
-        views.addView(R.id.hourly_readings_container, noDataView)
-    }
-    
-    // Extension function to get the number of views in a ViewGroup
-    private fun RemoteViews.getCount(viewId: Int): Int {
-        // This is a workaround since RemoteViews doesn't have direct way to check count
-        // We need to check if any views exist in the container
-        return 0  // Default to assuming empty
     }
     
     // Helper class for returning multiple values

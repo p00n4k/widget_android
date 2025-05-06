@@ -167,7 +167,7 @@ class WidgetUpdateForegroundService : Service() {
             } catch (e: Exception) {
                 Log.e(TAG, "Error fetching PM2.5 data", e)
                 // Use a fallback empty data object
-                pm25Data = PM25Service.Companion.PM25Data(null, null, null, null)
+                pm25Data = PM25Service.Companion.PM25Data(null, null, null, null, null)
             }
             
             Log.d(TAG, "PM2.5 data received: ${pm25Data.pmCurrent ?: "No data"} μg/m³")

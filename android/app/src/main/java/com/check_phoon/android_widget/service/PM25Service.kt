@@ -27,7 +27,8 @@ class PM25Service {
         data class PM25Data(
             val pmCurrent: Double?,
             val hourlyReadings: List<Pair<String, Double>>?,
-            val dateTimeString: String?,
+            val dateString: String?,
+            val timeString: String?,
             val location: LocationData?
         )
 
@@ -112,7 +113,7 @@ class PM25Service {
                 }
                 
                 // Return empty data as fallback
-                PM25Data(null, null, null, null)
+                PM25Data(null, null, null, null, null)
             }
         }
         
@@ -153,7 +154,7 @@ class PM25Service {
                 // Check if data object exists
                 if (!jsonObject.has("data")) {
                     Log.e(TAG, "Response missing 'data' object")
-                    return PM25Data(null, null, null, null)
+                    return PM25Data(null, null, null, null, null)
                 }
                 
                 val dataObject = jsonObject.getJSONObject("data")
@@ -176,21 +177,24 @@ class PM25Service {
                 }
                 
                 // Extract date information based on language with safety checks
-                var dateTimeString: String? = null
+                var dateString: String? = null
+                var timeString: String? = null
                 try {
                     if (language == "th" && dataObject.has("datetimeThai")) {
                         val datetimeThai = dataObject.getJSONObject("datetimeThai")
                         val dateThai = datetimeThai.optString("dateThai", "")
                         val timeThai = datetimeThai.optString("timeThai", "")
                         if (dateThai.isNotEmpty() || timeThai.isNotEmpty()) {
-                            dateTimeString = "$dateThai $timeThai"
+                            dateString = "$dateThai"
+                            timeString = "$timeThai"
                         }
                     } else if (dataObject.has("datetimeEng")) {
                         val datetimeEng = dataObject.getJSONObject("datetimeEng")
                         val dateEng = datetimeEng.optString("dateEng", "")
                         val timeEng = datetimeEng.optString("timeEng", "")
                         if (dateEng.isNotEmpty() || timeEng.isNotEmpty()) {
-                            dateTimeString = "$dateEng $timeEng"
+                            dateString = "$dateEng"
+                            timeString = "$timeEng"
                         }
                     }
                 } catch (e: Exception) {
@@ -252,14 +256,14 @@ class PM25Service {
                     Log.d(TAG, "Using first hourly reading as current PM2.5: $pmCurrent")
                 }
                 
-                val result = PM25Data(pmCurrent, hourlyReadings, dateTimeString, locationData)
+                val result = PM25Data(pmCurrent, hourlyReadings, dateString, timeString, locationData)
                 Log.d(TAG, "Parsed data: PM2.5=${result.pmCurrent}, hourly count=${result.hourlyReadings?.size ?: 0}")
                 return result
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Error parsing response: ${e.message}")
                 e.printStackTrace()
-                return PM25Data(null, null, null, null)
+                return PM25Data(null, null, null, null, null)
             }
         }
         
